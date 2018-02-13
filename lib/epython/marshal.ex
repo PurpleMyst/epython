@@ -16,7 +16,9 @@ defmodule EPython.Marshal do
       ?T -> :true
       ?S -> :stopiteration
       ?. -> :ellipsis
+
       ?i -> {:integer, :binary.decode_unsigned(data, :little)}
+
       _  -> {:unknown, type, data}
     end
   end
