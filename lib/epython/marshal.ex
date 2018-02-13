@@ -72,14 +72,13 @@ defmodule EPython.Marshal do
   defp unmarshal_dict_pairs(data) do
     {key, rest} = unmarshal_once data
 
-    case key do
-      :null -> {[], rest}
+    if key == :null then
+       {[], rest}
+    else
+      {value, rester} = unmarshal_once rest
+      {pairs, resterer} = unmarshal_dict_pairs rester
 
-      _ ->
-        {value, rester} = unmarshal_once rest
-        {pairs, resterer} = unmarshal_dict_pairs rester
-
-        {[{key, value} | pairs], resterer}
+      {[{key, value} | pairs], resterer}
     end
   end
 
