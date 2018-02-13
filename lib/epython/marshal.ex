@@ -1,4 +1,22 @@
 defmodule EPython.Marshal do
+  @code_object_parts [
+                      argcount: :long,
+                      kwonlyargcount: :long,
+                      nlocals: :long,
+                      stacksize: :long,
+                      flags: :long,
+                      code: :object,
+                      consts: :object,
+                      names: :object,
+                      varnames: :object,
+                      freevars: :object,
+                      cellvars: :object,
+                      filename: :object,
+                      name: :object,
+                      firstlineno: :long,
+                      lnotab: :object,
+                     ]
+
   def unmarshal(<<>>) do
     []
   end
@@ -32,6 +50,7 @@ defmodule EPython.Marshal do
       ?A -> unmarshal_string data
       ?u -> unmarshal_string data
       ?t -> unmarshal_string data
+      ?s -> unmarshal_string data
 
       ?) -> unmarshal_small_tuple data
       ?( -> unmarshal_sequence :tuple, data
@@ -40,9 +59,11 @@ defmodule EPython.Marshal do
       ?< -> unmarshal_sequence :set, data
       ?> -> unmarshal_sequence :frozenset, data
 
+      ?c -> unmarshal_code data
+
       ?r -> unmarshal_reference data
 
-      _  -> {{:unknown, type}, data}
+      _ -> raise ArgumentError, message: "Unknown type: #{inspect type}"
     end
   end
 
@@ -112,5 +133,25 @@ defmodule EPython.Marshal do
 
   defp unmarshal_reference(<< id :: 8*4-little, rest :: binary >>) do
     {{:reference, id}, rest}
+  end
+
+  # XXX: This is not the same as a PyLong.
+  defp unmarshal_long(<< a, b, c, d, rest :: binary>>) do
+    {{:integer, :binary.decode_unsigned(<<a, b, c, d>>, :little)}, rest}
+  end
+
+  defp unmarshal_code(data) do
+    {pairs, rest} =
+      @code_object_parts
+      |> Enum.map_reduce(data, fn {name, type}, rest ->
+          {value, rest} = case type do
+            :long   -> unmarshal_long rest
+            :object -> unmarshal_once rest
+          end
+
+          {{name, value}, rest}
+      end)
+
+    {{:code, pairs}, rest}
   end
 end
