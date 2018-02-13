@@ -14,29 +14,34 @@ defmodule EPython.Marshal do
     # I purposefully skipped over the 'I' and 'f' data types seeing as they are
     # not used.
     case type do
-      ?N -> :none
-      ?F -> :false
-      ?T -> :true
-      ?S -> :stopiteration
-      ?. -> :ellipsis
+      ?N -> [:none | unmarshal data]
+      ?F -> [:false | unmarshal data]
+      ?T -> [:true | unmarshal data]
+      ?S -> [:stopiteration | unmarshal data]
+      ?. -> [:ellipsis | unmarshal data]
 
-      ?i -> {:integer, decode_int32 data}
-      ?g -> {:float, decode_float data}
-      ?y -> {:complex, decode_complex data}
+      ?i -> apply_decoder &decode_int32/1, data
+      ?g -> apply_decoder &decode_float/1, data
+      ?y -> apply_decoder &decode_complex/1, data
 
-      _  -> {:unknown, type, data}
+      _  -> [{:unknown, type, data}]
     end
   end
 
-  defp decode_int32(<< n :: 32-signed-little >>) do
-    n
+  defp apply_decoder(decoder, data) do
+    {value, rest} = decoder.(data)
+    [value | unmarshal rest]
   end
 
-  defp decode_float(<< n :: float-little >>) do
-    n
+  defp decode_int32(<< n :: 32-signed-little, rest :: binary >>) do
+    {{:integer, n}, rest}
   end
 
-  defp decode_complex(<< a :: float-little, b :: float-little >>) do
-    {a, b}
+  defp decode_float(<< n :: float-little, rest :: binary >>) do
+    {{:float, n}, rest}
+  end
+
+  defp decode_complex(<< a :: float-little, b :: float-little, rest :: binary >>) do
+    {{:complex, {a, b}}, rest}
   end
 end
