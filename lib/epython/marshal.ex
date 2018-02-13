@@ -1,6 +1,4 @@
 defmodule EPython.Marshal do
-  @flag_ref 0x80
-
   def unmarshal(<<>>) do
     []
   end
@@ -10,12 +8,9 @@ defmodule EPython.Marshal do
       [value | unmarshal rest]
   end
 
-  defp unmarshal_once(<<type, data :: binary>>) do
-    use Bitwise
-
+  defp unmarshal_once(<<ref_flag :: 1, type :: 7, data :: binary>>) do
     # TODO: Actually handle references. Right now we note when references are,
     # however I think we should automatically resolve them.
-    type = type &&& (~~~@flag_ref)
 
     # I purposefully skipped over the 'I' and 'f' data types seeing as they are
     # not used.
@@ -87,15 +82,14 @@ defmodule EPython.Marshal do
   end
 
   defp unmarshal_dict_pairs(data) do
-    {key, rest} = unmarshal_once data
+    case unmarshal_once data do
+      {:null, rest} -> {[], rest}
 
-    if key == :null do
-       {[], rest}
-    else
-      {value, rester} = unmarshal_once rest
-      {pairs, resterer} = unmarshal_dict_pairs rester
+      {key, rest} ->
+        {value, rester} = unmarshal_once rest
+        {pairs, resterer} = unmarshal_dict_pairs rester
 
-      {[{key, value} | pairs], resterer}
+        {[{key, value} | pairs], resterer}
     end
   end
 
