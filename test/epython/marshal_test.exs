@@ -24,4 +24,8 @@ defmodule EPython.MarshalTest do
   test "can unmarshal ints" do
     assert EPython.Marshal.unmarshal(<<?i, 1, 0, 0, 0>>) == {:integer, 1}
   end
+
+  test "can unmarshal floats" do
+    assert EPython.Marshal.unmarshal(<<?g, 119, 190, 159, 26, 47, 221, 94, 64>>) == {:float, 123.456}
+  end
 end

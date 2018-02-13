@@ -8,8 +8,11 @@ defmodule EPython.Marshal do
   def unmarshal(<<type, data :: binary>>) do
     use Bitwise
 
+    # TODO: Handle references
     type = type &&& (~~~@flag_ref)
 
+    # I purposefully skipped over the 'I' and 'f' data types seeing as they are
+    # not used.
     case type do
       ?N -> :none
       ?F -> :false
@@ -19,7 +22,11 @@ defmodule EPython.Marshal do
 
       ?i -> {:integer, :binary.decode_unsigned(data, :little)}
 
+      ?g -> {:float, decode_float data}
+
       _  -> {:unknown, type, data}
     end
   end
+
+  defp decode_float(<< n :: float-little >>), do: n
 end
