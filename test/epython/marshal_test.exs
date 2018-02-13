@@ -63,4 +63,20 @@ defmodule EPython.MarshalTest do
       {:integer, current}
     end)
   end
+
+  test "can unmarshal lists" do
+    # D.R.Y. code for the win!
+    <<_, data :: binary>> = File.read! "test/data/large_tuple.marshal"
+    data = <<?[, data :: binary>>
+
+    result = EPython.Marshal.unmarshal(data)
+
+    assert [{:list, _}] = result
+    [{:list, contents}] = result
+
+    Enum.reduce(contents, fn {:integer, current}, {:integer, last} ->
+      assert last + 1 == current
+      {:integer, current}
+    end)
+  end
 end

@@ -32,6 +32,8 @@ defmodule EPython.Marshal do
       ?( -> decode_tuple :large, data
       ?) -> decode_tuple :small, data
 
+      ?[ -> decode_list data
+
       _  -> {{:unknown, type}, data}
     end
   end
@@ -49,16 +51,21 @@ defmodule EPython.Marshal do
   end
 
   defp decode_tuple(:large, << size :: 32-signed-little, rest :: binary >>) do
-    {contents, rester} = Enum.reduce((1..size), {[], rest}, &add_element_to_tuple/2)
+    {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
     {{:tuple, Enum.reverse contents}, rester}
   end
 
   defp decode_tuple(:small, << size, rest :: binary >>) do
-    {contents, rester} = Enum.reduce((1..size), {[], rest}, &add_element_to_tuple/2)
+    {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
     {{:tuple, Enum.reverse contents}, rester}
   end
 
-  defp add_element_to_tuple(_, {items, data}) do
+  defp decode_list(<< size :: 32-signed-little, rest :: binary >>) do
+    {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
+    {{:list, Enum.reverse contents}, rester}
+  end
+
+  defp unmarshal_item(_, {items, data}) do
     {value, rest} = unmarshal_once data
     {[value | items], rest}
   end
