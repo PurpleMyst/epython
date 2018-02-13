@@ -92,9 +92,9 @@ defmodule EPython.MarshalTest do
     assert EPython.Marshal.unmarshal(data) == [{:dict, [{{:integer, 1}, {:integer, 2}}, {{:integer, 3}, {:integer, 4}}]}]
   end
 
-  test "can unmarshal basic references" do
+  test "can unmarshal references" do
     data = "\xdb\x02\x00\x00\x00\xdb\x00\x00\x00\x00r\x01\x00\x00\x00"
-    assert EPython.Marshal.unmarshal(data) == [{:list, [{:list, []}, {:reference, 1}]}]
+    assert EPython.Marshal.unmarshal(data) == [{:list, [{:list, []}, {:list, []}]}]
   end
 
   test "can unmarshal short ascii strings" do

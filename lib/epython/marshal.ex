@@ -17,22 +17,21 @@ defmodule EPython.Marshal do
                       lnotab: :object,
                      ]
 
-  def unmarshal(<<>>) do
+  def unmarshal(data, references \\ [])
+
+  def unmarshal(<<>>, _) do
     []
   end
 
-  def unmarshal(data) when is_binary(data) do
-      {value, rest} = unmarshal_once data
-      [value | unmarshal rest]
+  def unmarshal(data, references) when is_binary(data) do
+      {value, rest, references} = unmarshal_once(data, references)
+      [value | unmarshal(rest, references)]
   end
 
-  defp unmarshal_once(<<ref_flag :: 1, type :: 7, data :: binary>>) do
-    # TODO: Actually handle references. Right now we note when references are,
-    # however I think we should automatically resolve them.
-
+  defp unmarshal_once(<<ref_flag :: 1, type :: 7, data :: binary>>, references) do
     # I purposefully skipped over the 'I' and 'f' data types seeing as they are
     # not used.
-    case type do
+    result = case type do
       ?0 -> {:null, data}
       ?N -> {:none, data}
       ?F -> {:false, data}
@@ -52,18 +51,34 @@ defmodule EPython.Marshal do
       ?t -> unmarshal_string data
       ?s -> unmarshal_string data
 
-      ?) -> unmarshal_small_tuple data
-      ?( -> unmarshal_sequence :tuple, data
-      ?[ -> unmarshal_sequence :list, data
-      ?{ -> unmarshal_dict data
-      ?< -> unmarshal_sequence :set, data
-      ?> -> unmarshal_sequence :frozenset, data
+      ?) -> unmarshal_small_tuple data, references
+      ?( -> unmarshal_sequence :tuple, data, references
+      ?[ -> unmarshal_sequence :list, data, references
+      ?{ -> unmarshal_dict data, references
+      ?< -> unmarshal_sequence :set, data, references
+      ?> -> unmarshal_sequence :frozenset, data, references
 
-      ?c -> unmarshal_code data
+      ?c -> unmarshal_code data, references
 
-      ?r -> unmarshal_reference data
+      ?r -> unmarshal_reference data, references
 
       _ -> raise ArgumentError, message: "Unknown type: #{inspect type}"
+    end
+
+    references = case result do
+      {_, _} -> references
+      {_, _, new_references} -> new_references
+    end
+
+    references = if ref_flag != 0 do
+      references ++ [elem(result, 0)]
+    else
+      references
+    end
+
+    case result do
+      {unmarshalled_obj, rest} -> {unmarshalled_obj, rest, references}
+      {unmarshalled_obj, rest, _} -> {unmarshalled_obj, rest, references}
     end
   end
 
@@ -91,48 +106,48 @@ defmodule EPython.Marshal do
     {{:string, contents}, rester}
   end
 
-  defp unmarshal_small_tuple(<< size :: 8, rest :: binary >>) do
+  defp unmarshal_small_tuple(<< size :: 8, rest :: binary >>, references) do
     if size == 0 do
       {{:tuple, []}, rest}
     else
-      {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
-      {{:tuple, Enum.reverse contents}, rester}
+      {contents, rester, references} = Enum.reduce((1..size), {[], rest, references}, &unmarshal_item/2)
+      {{:tuple, Enum.reverse contents}, rester, references}
     end
   end
 
-  defp unmarshal_dict(data) do
-    {pairs, rest} = unmarshal_dict_pairs data
-    {{:dict, pairs}, rest}
+  defp unmarshal_dict(data, references) do
+    {pairs, rest, references} = unmarshal_dict_pairs(data, references)
+    {{:dict, pairs}, rest, references}
   end
 
-  defp unmarshal_dict_pairs(data) do
-    case unmarshal_once data do
-      {:null, rest} -> {[], rest}
+  defp unmarshal_dict_pairs(data, references) do
+    case unmarshal_once(data, references) do
+      {:null, rest, references} -> {[], rest, references}
 
-      {key, rest} ->
-        {value, rester} = unmarshal_once rest
-        {pairs, resterer} = unmarshal_dict_pairs rester
+      {key, rest, references} ->
+        {value, rester, references} = unmarshal_once(rest, references)
+        {pairs, resterer, references} = unmarshal_dict_pairs(rester, references)
 
-        {[{key, value} | pairs], resterer}
+        {[{key, value} | pairs], resterer, references}
     end
   end
 
-  defp unmarshal_sequence(type, << size :: 32-signed-little, rest :: binary >>) when is_atom(type) do
+  defp unmarshal_sequence(type, << size :: 32-signed-little, rest :: binary >>, references) when is_atom(type) do
     if size == 0 do
       {{type, []}, rest}
     else
-      {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
-      {{type, Enum.reverse contents}, rester}
+      {contents, rester, references} = Enum.reduce((1..size), {[], rest, references}, &unmarshal_item/2)
+      {{type, Enum.reverse contents}, rester, references}
     end
   end
 
-  defp unmarshal_item(_, {items, data}) do
-    {value, rest} = unmarshal_once data
-    {[value | items], rest}
+  defp unmarshal_item(_, {items, data, references}) do
+    {value, rest, references} = unmarshal_once(data, references)
+    {[value | items], rest, references}
   end
 
-  defp unmarshal_reference(<< id :: 8*4-little, rest :: binary >>) do
-    {{:reference, id}, rest}
+  defp unmarshal_reference(<< id :: 8*4-little, rest :: binary >>, references) do
+    {get_reference(references, id), rest}
   end
 
   # XXX: This is not the same as a PyLong.
@@ -140,18 +155,24 @@ defmodule EPython.Marshal do
     {{:integer, :binary.decode_unsigned(<<a, b, c, d>>, :little)}, rest}
   end
 
-  defp unmarshal_code(data) do
-    {pairs, rest} =
+  defp unmarshal_code(data, references) do
+    {pairs, {rest, references}} =
       @code_object_parts
-      |> Enum.map_reduce(data, fn {name, type}, rest ->
-          {value, rest} = case type do
-            :long   -> unmarshal_long rest
-            :object -> unmarshal_once rest
-          end
+      |> Enum.map_reduce({data, references}, fn {name, type}, {rest, references} ->
+          case type do
+            :long ->
+              {value, rest} = unmarshal_long(rest)
+              {{name, value}, {rest, references}}
 
-          {{name, value}, rest}
+            :object ->
+              {value, rest, references} = unmarshal_once(rest, references)
+              {{name, value}, {rest, references}}
+          end
       end)
 
-    {{:code, pairs}, rest}
+    {{:code, pairs}, rest, references}
   end
+
+  defp get_reference(l, n) when n <= 1, do: hd(l)
+  defp get_reference(l, n),             do: get_reference(tl(l), n - 1)
 end
