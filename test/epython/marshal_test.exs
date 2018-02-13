@@ -45,4 +45,22 @@ defmodule EPython.MarshalTest do
     data = <<?y, 0, 0, 0, 0, 0, 0, 240, 63, 0, 0, 0, 0, 0, 0, 8, 64>>
     assert EPython.Marshal.unmarshal(data) == [{:complex, {1, 3}}]
   end
+
+  test "can unmarshal small tuples" do
+    data = <<?), 3, 233, 1, 0, 0, 0, 231, 102, 102, 102, 102, 102, 102, 2, 64, 121, 0, 0, 0, 0, 0, 0, 8, 64, 0, 0, 0, 0, 0, 0, 16, 64>>
+    assert EPython.Marshal.unmarshal(data) == [{:tuple, [{:integer, 1}, {:float, 2.3}, {:complex, {3.0, 4.0}}]}]
+  end
+
+  test "can unmarshal large tuples" do
+    data = File.read! "test/data/large_tuple.marshal"
+    result = EPython.Marshal.unmarshal(data)
+
+    assert [{:tuple, _}] = result
+    [{:tuple, contents}] = result
+
+    Enum.reduce(contents, fn {:integer, current}, {:integer, last} ->
+      assert last + 1 == current
+      {:integer, current}
+    end)
+  end
 end
