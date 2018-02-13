@@ -74,6 +74,10 @@ defmodule EPython.MarshalTest do
     test_sequence(:list, ?[)
   end
 
+  test "can unmarshal set" do
+    test_sequence(:set, ?<)
+  end
+
   test "can unmarshal frozensets" do
     test_sequence(:frozenset, ?>)
   end
@@ -101,5 +105,10 @@ defmodule EPython.MarshalTest do
   test "can unmarshal non-short ascii strings" do
     data = "\xe1\x01\x01\x00\x00ihNGRgAUqwoGdMGPcTAOTSGfilYWtdSwcjZMjcJBRYOkJkljpRJVXXFVeYhDrykdGovOXBJfxPXSkhAoOFumeEcqfFTAfYpCCgiSoDWaHScIsUqZnOpUfFPrJeNuDboFxlUGYMehRpecWxIgRcuUOSylHApfjlGEkhiEglkDYFLWhlEvugmkvOOwrcCmdgkNwEhdglZpSGvQoqDWOmRpktniQPWaYfVQwTvHAXtwXlvanAFtPDqpxbpkrsFeNQasl"
     assert EPython.Marshal.unmarshal(data) == [{:string, "ihNGRgAUqwoGdMGPcTAOTSGfilYWtdSwcjZMjcJBRYOkJkljpRJVXXFVeYhDrykdGovOXBJfxPXSkhAoOFumeEcqfFTAfYpCCgiSoDWaHScIsUqZnOpUfFPrJeNuDboFxlUGYMehRpecWxIgRcuUOSylHApfjlGEkhiEglkDYFLWhlEvugmkvOOwrcCmdgkNwEhdglZpSGvQoqDWOmRpktniQPWaYfVQwTvHAXtwXlvanAFtPDqpxbpkrsFeNQasl"}]
+  end
+
+  test "can unmarshal unicode strings" do
+    data = "\xf5\x0e\x00\x00\x00\xc3\xb2\xc3\xa0\xc3\xb9\xc3\xa8+\xc2\xa1@\xc2\xb7"
+    assert EPython.Marshal.unmarshal(data) == [{:string, "òàùè+¡@·"}]
   end
 end

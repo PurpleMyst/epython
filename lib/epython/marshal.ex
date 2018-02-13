@@ -28,13 +28,16 @@ defmodule EPython.Marshal do
 
       ?z -> unmarshal_short_ascii data
       ?Z -> unmarshal_short_ascii data
-      ?a -> unmarshal_ascii data
-      ?A -> unmarshal_ascii data
+      ?a -> unmarshal_string data
+      ?A -> unmarshal_string data
+      ?u -> unmarshal_string data
+      ?t -> unmarshal_string data
 
       ?) -> unmarshal_small_tuple data
       ?( -> unmarshal_sequence :tuple, data
       ?[ -> unmarshal_sequence :list, data
       ?{ -> unmarshal_dict data
+      ?< -> unmarshal_sequence :set, data
       ?> -> unmarshal_sequence :frozenset, data
 
       ?r -> unmarshal_reference data
@@ -61,7 +64,7 @@ defmodule EPython.Marshal do
     {{:string, contents}, rester}
   end
 
-  defp unmarshal_ascii(<< size :: 32-little, rest :: binary >>) do
+  defp unmarshal_string(<< size :: 32-little, rest :: binary >>) do
     contents = binary_part rest, 0, size
     rester = binary_part rest, size, byte_size(rest) - size
     {{:string, contents}, rester}
