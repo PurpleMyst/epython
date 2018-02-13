@@ -51,12 +51,14 @@ defmodule EPython.MarshalTest do
     assert EPython.Marshal.unmarshal(data) == [{:tuple, [{:integer, 1}, {:float, 2.3}, {:complex, {3.0, 4.0}}]}]
   end
 
-  test "can unmarshal large tuples" do
-    data = File.read! "test/data/large_tuple.marshal"
+  defp test_sequence(type_atom, type_char) do
+    <<_, data :: binary>> = File.read! "test/data/large_tuple.marshal"
+    data = <<type_char, data :: binary>>
+
     result = EPython.Marshal.unmarshal(data)
 
-    assert [{:tuple, _}] = result
-    [{:tuple, contents}] = result
+    assert [{^type_atom, _}] = result
+    [{^type_atom, contents}] = result
 
     Enum.reduce(contents, fn {:integer, current}, {:integer, last} ->
       assert last + 1 == current
@@ -64,19 +66,15 @@ defmodule EPython.MarshalTest do
     end)
   end
 
+  test "can unmarshal large tuples" do
+    test_sequence(:tuple, ?()
+  end
+
   test "can unmarshal lists" do
-    # D.R.Y. code for the win!
-    <<_, data :: binary>> = File.read! "test/data/large_tuple.marshal"
-    data = <<?[, data :: binary>>
+    test_sequence(:list, ?[)
+  end
 
-    result = EPython.Marshal.unmarshal(data)
-
-    assert [{:list, _}] = result
-    [{:list, contents}] = result
-
-    Enum.reduce(contents, fn {:integer, current}, {:integer, last} ->
-      assert last + 1 == current
-      {:integer, current}
-    end)
+  test "can unmarshal frozensets" do
+    test_sequence(:frozenset, ?>)
   end
 end

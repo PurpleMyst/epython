@@ -29,10 +29,10 @@ defmodule EPython.Marshal do
       ?g -> decode_float data
       ?y -> decode_complex data
 
-      ?( -> decode_tuple :large, data
-      ?) -> decode_tuple :small, data
-
-      ?[ -> decode_list data
+      ?) -> decode_small_tuple data
+      ?( -> decode_sequence :tuple, data
+      ?[ -> decode_sequence :list, data
+      ?> -> decode_sequence :frozenset, data
 
       _  -> {{:unknown, type}, data}
     end
@@ -50,19 +50,14 @@ defmodule EPython.Marshal do
     {{:complex, {a, b}}, rest}
   end
 
-  defp decode_tuple(:large, << size :: 32-signed-little, rest :: binary >>) do
+  defp decode_small_tuple(<< size :: 8, rest :: binary >>) do
     {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
     {{:tuple, Enum.reverse contents}, rester}
   end
 
-  defp decode_tuple(:small, << size, rest :: binary >>) do
+  defp decode_sequence(type, << size :: 32-signed-little, rest :: binary >>) when is_atom(type) do
     {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
-    {{:tuple, Enum.reverse contents}, rester}
-  end
-
-  defp decode_list(<< size :: 32-signed-little, rest :: binary >>) do
-    {contents, rester} = Enum.reduce((1..size), {[], rest}, &unmarshal_item/2)
-    {{:list, Enum.reverse contents}, rester}
+    {{type, Enum.reverse contents}, rester}
   end
 
   defp unmarshal_item(_, {items, data}) do
