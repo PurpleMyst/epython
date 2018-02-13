@@ -5,7 +5,12 @@ defmodule EPython.Marshal do
     []
   end
 
-  def unmarshal(<<type, data :: binary>>) do
+  def unmarshal(data) when is_binary(data) do
+      {value, rest} = unmarshal_once data
+      [value | unmarshal rest]
+  end
+
+  defp unmarshal_once(<<type, data :: binary>>) do
     use Bitwise
 
     # TODO: Handle references
@@ -14,29 +19,31 @@ defmodule EPython.Marshal do
     # I purposefully skipped over the 'I' and 'f' data types seeing as they are
     # not used.
     case type do
-      ?N -> :none
-      ?F -> :false
-      ?T -> :true
-      ?S -> :stopiteration
-      ?. -> :ellipsis
+      ?N -> {:none, data}
+      ?F -> {:false, data}
+      ?T -> {:true, data}
+      ?S -> {:stopiteration, data}
+      ?. -> {:ellipsis, data}
 
-      ?i -> {:integer, decode_int32 data}
-      ?g -> {:float, decode_float data}
-      ?y -> {:complex, decode_complex data}
+      ?i -> decode_int32 data
+      ?g -> decode_float data
+      ?y -> decode_complex data
 
-      _  -> {:unknown, type, data}
+      #?( -> decode_tuple data
+
+      _  -> {{:unknown, type}, data}
     end
   end
 
-  defp decode_int32(<< n :: 32-signed-little >>) do
-    n
+  defp decode_int32(<< n :: 32-signed-little, rest :: binary >>) do
+    {{:integer, n}, rest}
   end
 
-  defp decode_float(<< n :: float-little >>) do
-    n
+  defp decode_float(<< n :: float-little, rest :: binary >>) do
+    {{:float, n}, rest}
   end
 
-  defp decode_complex(<< a :: float-little, b :: float-little >>) do
-    {a, b}
+  defp decode_complex(<< a :: float-little, b :: float-little, rest :: binary >>) do
+    {{:complex, {a, b}}, rest}
   end
 end
