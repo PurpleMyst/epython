@@ -1,4 +1,4 @@
-defmodule EPython.CodeObjectTest do
+defmodule EPython.BytecodeFileTest do
   use ExUnit.Case
 
   setup_all do
@@ -12,12 +12,17 @@ defmodule EPython.CodeObjectTest do
   end
 
   test "returns {:error, :enoent} on unknown file" do
-    rv = EPython.CodeObject.from_file("unknown")
+    rv = EPython.BytecodeFile.from_file("unknown")
     assert rv == {:error, :enoent}
   end
 
   test "returns a code object on known file" do
-    rv = EPython.CodeObject.from_file("test/data/__pycache__/codeobject_test.cpython-36.pyc")
+    rv = EPython.BytecodeFile.from_file("test/data/__pycache__/codeobject_test.cpython-36.pyc")
     assert elem(rv, 0) == :ok
+  end
+
+  test "magic number is correct" do
+    {:ok, co} = EPython.BytecodeFile.from_file("test/data/__pycache__/codeobject_test.cpython-36.pyc")
+    assert binary_part(co.magic, 2, 2) == "\r\n"
   end
 end
