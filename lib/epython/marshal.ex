@@ -20,13 +20,18 @@ defmodule EPython.Marshal do
       ?S -> :stopiteration
       ?. -> :ellipsis
 
-      ?i -> {:integer, :binary.decode_unsigned(data, :little)}
-
+      ?i -> {:integer, decode_int32 data}
       ?g -> {:float, decode_float data}
 
       _  -> {:unknown, type, data}
     end
   end
 
-  defp decode_float(<< n :: float-little >>), do: n
+  defp decode_int32(<< n :: 32-signed >>) do
+    n
+  end
+
+  defp decode_float(<< n :: float-little >>) do
+    n
+  end
 end

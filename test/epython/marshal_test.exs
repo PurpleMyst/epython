@@ -21,8 +21,12 @@ defmodule EPython.MarshalTest do
     assert EPython.Marshal.unmarshal(<<?.>>) == :ellipsis
   end
 
-  test "can unmarshal ints" do
+  test "can unmarshal positive ints" do
     assert EPython.Marshal.unmarshal(<<?i, 1, 0, 0, 0>>) == {:integer, 1}
+  end
+
+  test "can unmarshal negative ints" do
+    assert EPython.Marshal.unmarshal(<<?i, 255, 255, 255, 255>>) == {:integer, -1}
   end
 
   test "can unmarshal floats" do
