@@ -92,4 +92,14 @@ defmodule EPython.MarshalTest do
     data = "\xdb\x02\x00\x00\x00\xdb\x00\x00\x00\x00r\x01\x00\x00\x00"
     assert EPython.Marshal.unmarshal(data) == [{:list, [{:list, []}, {:reference, 1}]}]
   end
+
+  test "can unmarshal short ascii strings" do
+    data = "\xfa\x13Elixir is very cool"
+    assert EPython.Marshal.unmarshal(data) == [{:string, "Elixir is very cool"}]
+  end
+
+  test "can unmarshal non-short ascii strings" do
+    data = "\xe1\x01\x01\x00\x00ihNGRgAUqwoGdMGPcTAOTSGfilYWtdSwcjZMjcJBRYOkJkljpRJVXXFVeYhDrykdGovOXBJfxPXSkhAoOFumeEcqfFTAfYpCCgiSoDWaHScIsUqZnOpUfFPrJeNuDboFxlUGYMehRpecWxIgRcuUOSylHApfjlGEkhiEglkDYFLWhlEvugmkvOOwrcCmdgkNwEhdglZpSGvQoqDWOmRpktniQPWaYfVQwTvHAXtwXlvanAFtPDqpxbpkrsFeNQasl"
+    assert EPython.Marshal.unmarshal(data) == [{:string, "ihNGRgAUqwoGdMGPcTAOTSGfilYWtdSwcjZMjcJBRYOkJkljpRJVXXFVeYhDrykdGovOXBJfxPXSkhAoOFumeEcqfFTAfYpCCgiSoDWaHScIsUqZnOpUfFPrJeNuDboFxlUGYMehRpecWxIgRcuUOSylHApfjlGEkhiEglkDYFLWhlEvugmkvOOwrcCmdgkNwEhdglZpSGvQoqDWOmRpktniQPWaYfVQwTvHAXtwXlvanAFtPDqpxbpkrsFeNQasl"}]
+  end
 end

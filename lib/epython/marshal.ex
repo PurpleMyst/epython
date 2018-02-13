@@ -31,6 +31,11 @@ defmodule EPython.Marshal do
       ?g -> unmarshal_float data
       ?y -> unmarshal_complex data
 
+      ?z -> unmarshal_short_ascii data
+      ?Z -> unmarshal_short_ascii data
+      ?a -> unmarshal_ascii data
+      ?A -> unmarshal_ascii data
+
       ?) -> unmarshal_small_tuple data
       ?( -> unmarshal_sequence :tuple, data
       ?[ -> unmarshal_sequence :list, data
@@ -55,6 +60,18 @@ defmodule EPython.Marshal do
     {{:complex, {a, b}}, rest}
   end
 
+  defp unmarshal_short_ascii(<< size :: 8, rest :: binary >>) do
+    contents = binary_part rest, 0, size
+    rester = binary_part rest, size, byte_size(rest) - size
+    {{:string, contents}, rester}
+  end
+
+  defp unmarshal_ascii(<< size :: 32-little, rest :: binary >>) do
+    contents = binary_part rest, 0, size
+    rester = binary_part rest, size, byte_size(rest) - size
+    {{:string, contents}, rester}
+  end
+
   defp unmarshal_small_tuple(<< size :: 8, rest :: binary >>) do
     if size == 0 do
       {{:tuple, []}, rest}
@@ -72,7 +89,7 @@ defmodule EPython.Marshal do
   defp unmarshal_dict_pairs(data) do
     {key, rest} = unmarshal_once data
 
-    if key == :null then
+    if key == :null do
        {[], rest}
     else
       {value, rester} = unmarshal_once rest
