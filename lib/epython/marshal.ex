@@ -31,25 +31,25 @@ defmodule EPython.Marshal do
   defp unmarshal_once(<<ref_flag :: 1, type :: 7, data :: binary>>, references) do
     # I purposefully skipped over the 'I' and 'f' data types seeing as they are
     # not used.
-    result = case type do
-      ?0 -> {:null, data}
-      ?N -> {:none, data}
-      ?F -> {:false, data}
-      ?T -> {:true, data}
-      ?S -> {:stopiteration, data}
-      ?. -> {:ellipsis, data}
+    {unmarshalled_obj, rest, references} = case type do
+      ?0 -> {:null, data, references}
+      ?N -> {:none, data, references}
+      ?F -> {:false, data, references}
+      ?T -> {:true, data, references}
+      ?S -> {:stopiteration, data, references}
+      ?. -> {:ellipsis, data, references}
 
-      ?i -> unmarshal_int32 data
-      ?g -> unmarshal_float data
-      ?y -> unmarshal_complex data
+      ?i -> unmarshal_int32 data, references
+      ?g -> unmarshal_float data, references
+      ?y -> unmarshal_complex data, references
 
-      ?z -> unmarshal_short_ascii data
-      ?Z -> unmarshal_short_ascii data
-      ?a -> unmarshal_string data
-      ?A -> unmarshal_string data
-      ?u -> unmarshal_string data
-      ?t -> unmarshal_string data
-      ?s -> unmarshal_string data
+      ?z -> unmarshal_short_ascii data, references
+      ?Z -> unmarshal_short_ascii data, references
+      ?a -> unmarshal_string data, references
+      ?A -> unmarshal_string data, references
+      ?u -> unmarshal_string data, references
+      ?t -> unmarshal_string data, references
+      ?s -> unmarshal_string data, references
 
       ?) -> unmarshal_small_tuple data, references
       ?( -> unmarshal_sequence :tuple, data, references
@@ -62,53 +62,45 @@ defmodule EPython.Marshal do
 
       ?r -> unmarshal_reference data, references
 
-      _ -> raise ArgumentError, message: "Unknown type: #{inspect type}"
-    end
-
-    references = case result do
-      {_, _} -> references
-      {_, _, new_references} -> new_references
+      _ -> raise ArgumentError, message: "Unknown type: #{inspect [type]}"
     end
 
     references = if ref_flag != 0 do
-      references ++ [elem(result, 0)]
+      references ++ [unmarshalled_obj]
     else
       references
     end
 
-    case result do
-      {unmarshalled_obj, rest} -> {unmarshalled_obj, rest, references}
-      {unmarshalled_obj, rest, _} -> {unmarshalled_obj, rest, references}
-    end
+    {unmarshalled_obj, rest, references}
   end
 
-  defp unmarshal_int32(<< n :: 32-signed-little, rest :: binary >>) do
-    {{:integer, n}, rest}
+  defp unmarshal_int32(<< n :: 32-signed-little, rest :: binary >>, references) do
+    {{:integer, n}, rest, references}
   end
 
-  defp unmarshal_float(<< n :: float-little, rest :: binary >>) do
-    {{:float, n}, rest}
+  defp unmarshal_float(<< n :: float-little, rest :: binary >>, references) do
+    {{:float, n}, rest, references}
   end
 
-  defp unmarshal_complex(<< a :: float-little, b :: float-little, rest :: binary >>) do
-    {{:complex, {a, b}}, rest}
+  defp unmarshal_complex(<< a :: float-little, b :: float-little, rest :: binary >>, references) do
+    {{:complex, {a, b}}, rest, references}
   end
 
-  defp unmarshal_short_ascii(<< size :: 8, rest :: binary >>) do
+  defp unmarshal_short_ascii(<< size :: 8, rest :: binary >>, references) do
     contents = binary_part rest, 0, size
     rester = binary_part rest, size, byte_size(rest) - size
-    {{:string, contents}, rester}
+    {{:string, contents}, rester, references}
   end
 
-  defp unmarshal_string(<< size :: 32-little, rest :: binary >>) do
+  defp unmarshal_string(<< size :: 32-little, rest :: binary >>, references) do
     contents = binary_part rest, 0, size
     rester = binary_part rest, size, byte_size(rest) - size
-    {{:string, contents}, rester}
+    {{:string, contents}, rester, references}
   end
 
   defp unmarshal_small_tuple(<< size :: 8, rest :: binary >>, references) do
     if size == 0 do
-      {{:tuple, []}, rest}
+      {{:tuple, []}, rest, references}
     else
       {contents, rester, references} = Enum.reduce((1..size), {[], rest, references}, &unmarshal_item/2)
       {{:tuple, Enum.reverse contents}, rester, references}
@@ -134,7 +126,7 @@ defmodule EPython.Marshal do
 
   defp unmarshal_sequence(type, << size :: 32-signed-little, rest :: binary >>, references) when is_atom(type) do
     if size == 0 do
-      {{type, []}, rest}
+      {{type, []}, rest, references}
     else
       {contents, rester, references} = Enum.reduce((1..size), {[], rest, references}, &unmarshal_item/2)
       {{type, Enum.reverse contents}, rester, references}
@@ -147,7 +139,7 @@ defmodule EPython.Marshal do
   end
 
   defp unmarshal_reference(<< id :: 8*4-little, rest :: binary >>, references) do
-    {get_reference(references, id), rest}
+    {get_reference(references, id), rest, references}
   end
 
   # XXX: This is not the same as a PyLong.
