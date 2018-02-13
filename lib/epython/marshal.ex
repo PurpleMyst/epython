@@ -27,35 +27,35 @@ defmodule EPython.Marshal do
       ?S -> {:stopiteration, data}
       ?. -> {:ellipsis, data}
 
-      ?i -> decode_int32 data
-      ?g -> decode_float data
-      ?y -> decode_complex data
+      ?i -> unmarshal_int32 data
+      ?g -> unmarshal_float data
+      ?y -> unmarshal_complex data
 
-      ?) -> decode_small_tuple data
-      ?( -> decode_sequence :tuple, data
-      ?[ -> decode_sequence :list, data
-      ?{ -> decode_dict data
-      ?> -> decode_sequence :frozenset, data
+      ?) -> unmarshal_small_tuple data
+      ?( -> unmarshal_sequence :tuple, data
+      ?[ -> unmarshal_sequence :list, data
+      ?{ -> unmarshal_dict data
+      ?> -> unmarshal_sequence :frozenset, data
 
-      ?r -> decode_reference data
+      ?r -> unmarshal_reference data
 
       _  -> {{:unknown, type}, data}
     end
   end
 
-  defp decode_int32(<< n :: 32-signed-little, rest :: binary >>) do
+  defp unmarshal_int32(<< n :: 32-signed-little, rest :: binary >>) do
     {{:integer, n}, rest}
   end
 
-  defp decode_float(<< n :: float-little, rest :: binary >>) do
+  defp unmarshal_float(<< n :: float-little, rest :: binary >>) do
     {{:float, n}, rest}
   end
 
-  defp decode_complex(<< a :: float-little, b :: float-little, rest :: binary >>) do
+  defp unmarshal_complex(<< a :: float-little, b :: float-little, rest :: binary >>) do
     {{:complex, {a, b}}, rest}
   end
 
-  defp decode_small_tuple(<< size :: 8, rest :: binary >>) do
+  defp unmarshal_small_tuple(<< size :: 8, rest :: binary >>) do
     if size == 0 do
       {{:tuple, []}, rest}
     else
@@ -64,7 +64,7 @@ defmodule EPython.Marshal do
     end
   end
 
-  defp decode_dict(data) do
+  defp unmarshal_dict(data) do
     {pairs, rest} = unmarshal_dict_pairs data
     {{:dict, pairs}, rest}
   end
@@ -83,7 +83,7 @@ defmodule EPython.Marshal do
     end
   end
 
-  defp decode_sequence(type, << size :: 32-signed-little, rest :: binary >>) when is_atom(type) do
+  defp unmarshal_sequence(type, << size :: 32-signed-little, rest :: binary >>) when is_atom(type) do
     if size == 0 do
       {{type, []}, rest}
     else
@@ -97,7 +97,7 @@ defmodule EPython.Marshal do
     {[value | items], rest}
   end
 
-  defp decode_reference(<< id :: 8*4-little, rest :: binary >>) do
+  defp unmarshal_reference(<< id :: 8*4-little, rest :: binary >>) do
     {{:reference, id}, rest}
   end
 end
