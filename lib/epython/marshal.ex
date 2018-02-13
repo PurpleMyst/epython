@@ -22,16 +22,21 @@ defmodule EPython.Marshal do
 
       ?i -> {:integer, decode_int32 data}
       ?g -> {:float, decode_float data}
+      ?y -> {:complex, decode_complex data}
 
       _  -> {:unknown, type, data}
     end
   end
 
-  defp decode_int32(<< n :: 32-signed >>) do
+  defp decode_int32(<< n :: 32-signed-little >>) do
     n
   end
 
   defp decode_float(<< n :: float-little >>) do
     n
+  end
+
+  defp decode_complex(<< a :: float-little, b :: float-little >>) do
+    {a, b}
   end
 end

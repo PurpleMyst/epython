@@ -32,4 +32,8 @@ defmodule EPython.MarshalTest do
   test "can unmarshal floats" do
     assert EPython.Marshal.unmarshal(<<?g, 119, 190, 159, 26, 47, 221, 94, 64>>) == {:float, 123.456}
   end
+
+  test "can unmarshal complex numbers" do
+    assert EPython.Marshal.unmarshal(<<?y, 0, 0, 0, 0, 0, 0, 240, 63, 0, 0, 0, 0, 0, 0, 8, 64>>) == {:complex, {1, 3}}
+  end
 end
