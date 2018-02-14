@@ -167,6 +167,20 @@ defmodule EPython.Interpreter do
   end
 
   # TODO: Replace the BINARY_* instructions with macros.
+
+  # BINARY_POWER
+  defp execute_instruction(19, _arg, state) do
+    [frame | framestack] = state.framestack
+
+    [y | stack] = frame.stack
+    [x | stack] = stack
+
+    frame = %{frame | stack: [:math.pow(x, y) | stack]}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
   # BINARY_MULTIPLY
   defp execute_instruction(20, _arg, state) do
     [frame | framestack] = state.framestack
