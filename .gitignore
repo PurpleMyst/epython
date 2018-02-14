@@ -24,3 +24,6 @@ epython-*.tar
 
 # Ignore the __pycache__ directory.
 test/data/__pycache__/
+
+# Ignore the built executable.
+/epython

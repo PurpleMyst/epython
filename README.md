@@ -2,20 +2,13 @@
 
 EPython will be a toy CPython bytecode interpreter written in Elixir.
 
-## Installation
+## Compiliation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `epython` to your list of dependencies in `mix.exs`:
+At the shell, run:
 
-```elixir
-def deps do
-  [
-    {:epython, "~> 0.1.0"}
-  ]
-end
+```bash
+mix escript.build
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/epython](https://hexdocs.pm/epython).
-
+Which will generate a `./epython` executable that you can run with a bytecode
+file.

@@ -1,30 +1,32 @@
 defmodule EPython.InterpreterState do
-  defstruct [:code, :pc, :variables, :stack]
+  defstruct [:framestack]
 end
 
 defmodule EPython.Interpreter do
-  defp opname(0), do: "<0>"
+  defp builtins do
+    %{
+      "print" =>
+        %EPython.PyBuiltinFunction{
+          name: "print",
+          function: fn [arg] -> IO.inspect arg end
+        },
+     }
+  end
+
   defp opname(1), do: "POP_TOP"
   defp opname(2), do: "ROT_TWO"
   defp opname(3), do: "ROT_THREE"
   defp opname(4), do: "DUP_TOP"
   defp opname(5), do: "DUP_TOP_TWO"
-  defp opname(6), do: "<6>"
-  defp opname(7), do: "<7>"
-  defp opname(8), do: "<8>"
   defp opname(9), do: "NOP"
   defp opname(10), do: "UNARY_POSITIVE"
   defp opname(11), do: "UNARY_NEGATIVE"
   defp opname(12), do: "UNARY_NOT"
-  defp opname(13), do: "<13>"
-  defp opname(14), do: "<14>"
   defp opname(15), do: "UNARY_INVERT"
   defp opname(16), do: "BINARY_MATRIX_MULTIPLY"
   defp opname(17), do: "INPLACE_MATRIX_MULTIPLY"
-  defp opname(18), do: "<18>"
   defp opname(19), do: "BINARY_POWER"
   defp opname(20), do: "BINARY_MULTIPLY"
-  defp opname(21), do: "<21>"
   defp opname(22), do: "BINARY_MODULO"
   defp opname(23), do: "BINARY_ADD"
   defp opname(24), do: "BINARY_SUBTRACT"
@@ -33,35 +35,12 @@ defmodule EPython.Interpreter do
   defp opname(27), do: "BINARY_TRUE_DIVIDE"
   defp opname(28), do: "INPLACE_FLOOR_DIVIDE"
   defp opname(29), do: "INPLACE_TRUE_DIVIDE"
-  defp opname(30), do: "<30>"
-  defp opname(31), do: "<31>"
-  defp opname(32), do: "<32>"
-  defp opname(33), do: "<33>"
-  defp opname(34), do: "<34>"
-  defp opname(35), do: "<35>"
-  defp opname(36), do: "<36>"
-  defp opname(37), do: "<37>"
-  defp opname(38), do: "<38>"
-  defp opname(39), do: "<39>"
-  defp opname(40), do: "<40>"
-  defp opname(41), do: "<41>"
-  defp opname(42), do: "<42>"
-  defp opname(43), do: "<43>"
-  defp opname(44), do: "<44>"
-  defp opname(45), do: "<45>"
-  defp opname(46), do: "<46>"
-  defp opname(47), do: "<47>"
-  defp opname(48), do: "<48>"
-  defp opname(49), do: "<49>"
   defp opname(50), do: "GET_AITER"
   defp opname(51), do: "GET_ANEXT"
   defp opname(52), do: "BEFORE_ASYNC_WITH"
-  defp opname(53), do: "<53>"
-  defp opname(54), do: "<54>"
   defp opname(55), do: "INPLACE_ADD"
   defp opname(56), do: "INPLACE_SUBTRACT"
   defp opname(57), do: "INPLACE_MULTIPLY"
-  defp opname(58), do: "<58>"
   defp opname(59), do: "INPLACE_MODULO"
   defp opname(60), do: "STORE_SUBSCR"
   defp opname(61), do: "DELETE_SUBSCR"
@@ -77,7 +56,6 @@ defmodule EPython.Interpreter do
   defp opname(71), do: "LOAD_BUILD_CLASS"
   defp opname(72), do: "YIELD_FROM"
   defp opname(73), do: "GET_AWAITABLE"
-  defp opname(74), do: "<74>"
   defp opname(75), do: "INPLACE_LSHIFT"
   defp opname(76), do: "INPLACE_RSHIFT"
   defp opname(77), do: "INPLACE_AND"
@@ -102,7 +80,6 @@ defmodule EPython.Interpreter do
   defp opname(96), do: "DELETE_ATTR"
   defp opname(97), do: "STORE_GLOBAL"
   defp opname(98), do: "DELETE_GLOBAL"
-  defp opname(99), do: "<99>"
   defp opname(100), do: "LOAD_CONST"
   defp opname(101), do: "LOAD_NAME"
   defp opname(102), do: "BUILD_TUPLE"
@@ -120,30 +97,22 @@ defmodule EPython.Interpreter do
   defp opname(114), do: "POP_JUMP_IF_FALSE"
   defp opname(115), do: "POP_JUMP_IF_TRUE"
   defp opname(116), do: "LOAD_GLOBAL"
-  defp opname(117), do: "<117>"
-  defp opname(118), do: "<118>"
   defp opname(119), do: "CONTINUE_LOOP"
   defp opname(120), do: "SETUP_LOOP"
   defp opname(121), do: "SETUP_EXCEPT"
   defp opname(122), do: "SETUP_FINALLY"
-  defp opname(123), do: "<123>"
   defp opname(124), do: "LOAD_FAST"
   defp opname(125), do: "STORE_FAST"
   defp opname(126), do: "DELETE_FAST"
   defp opname(127), do: "STORE_ANNOTATION"
-  defp opname(128), do: "<128>"
-  defp opname(129), do: "<129>"
   defp opname(130), do: "RAISE_VARARGS"
   defp opname(131), do: "CALL_FUNCTION"
   defp opname(132), do: "MAKE_FUNCTION"
   defp opname(133), do: "BUILD_SLICE"
-  defp opname(134), do: "<134>"
   defp opname(135), do: "LOAD_CLOSURE"
   defp opname(136), do: "LOAD_DEREF"
   defp opname(137), do: "STORE_DEREF"
   defp opname(138), do: "DELETE_DEREF"
-  defp opname(139), do: "<139>"
-  defp opname(140), do: "<140>"
   defp opname(141), do: "CALL_FUNCTION_KW"
   defp opname(142), do: "CALL_FUNCTION_EX"
   defp opname(143), do: "SETUP_WITH"
@@ -162,112 +131,157 @@ defmodule EPython.Interpreter do
   defp opname(156), do: "BUILD_CONST_KEY_MAP"
   defp opname(157), do: "BUILD_STRING"
   defp opname(158), do: "BUILD_TUPLE_UNPACK_WITH_CALL"
-  defp opname(159), do: "<159>"
-  defp opname(160), do: "<160>"
-  defp opname(161), do: "<161>"
-  defp opname(162), do: "<162>"
-  defp opname(163), do: "<163>"
-  defp opname(164), do: "<164>"
-  defp opname(165), do: "<165>"
-  defp opname(166), do: "<166>"
-  defp opname(167), do: "<167>"
-  defp opname(168), do: "<168>"
-  defp opname(169), do: "<169>"
-  defp opname(170), do: "<170>"
-  defp opname(171), do: "<171>"
-  defp opname(172), do: "<172>"
-  defp opname(173), do: "<173>"
-  defp opname(174), do: "<174>"
-  defp opname(175), do: "<175>"
-  defp opname(176), do: "<176>"
-  defp opname(177), do: "<177>"
-  defp opname(178), do: "<178>"
-  defp opname(179), do: "<179>"
-  defp opname(180), do: "<180>"
-  defp opname(181), do: "<181>"
-  defp opname(182), do: "<182>"
-  defp opname(183), do: "<183>"
-  defp opname(184), do: "<184>"
-  defp opname(185), do: "<185>"
-  defp opname(186), do: "<186>"
-  defp opname(187), do: "<187>"
-  defp opname(188), do: "<188>"
-  defp opname(189), do: "<189>"
-  defp opname(190), do: "<190>"
-  defp opname(191), do: "<191>"
-  defp opname(192), do: "<192>"
-  defp opname(193), do: "<193>"
-  defp opname(194), do: "<194>"
-  defp opname(195), do: "<195>"
-  defp opname(196), do: "<196>"
-  defp opname(197), do: "<197>"
-  defp opname(198), do: "<198>"
-  defp opname(199), do: "<199>"
-  defp opname(200), do: "<200>"
-  defp opname(201), do: "<201>"
-  defp opname(202), do: "<202>"
-  defp opname(203), do: "<203>"
-  defp opname(204), do: "<204>"
-  defp opname(205), do: "<205>"
-  defp opname(206), do: "<206>"
-  defp opname(207), do: "<207>"
-  defp opname(208), do: "<208>"
-  defp opname(209), do: "<209>"
-  defp opname(210), do: "<210>"
-  defp opname(211), do: "<211>"
-  defp opname(212), do: "<212>"
-  defp opname(213), do: "<213>"
-  defp opname(214), do: "<214>"
-  defp opname(215), do: "<215>"
-  defp opname(216), do: "<216>"
-  defp opname(217), do: "<217>"
-  defp opname(218), do: "<218>"
-  defp opname(219), do: "<219>"
-  defp opname(220), do: "<220>"
-  defp opname(221), do: "<221>"
-  defp opname(222), do: "<222>"
-  defp opname(223), do: "<223>"
-  defp opname(224), do: "<224>"
-  defp opname(225), do: "<225>"
-  defp opname(226), do: "<226>"
-  defp opname(227), do: "<227>"
-  defp opname(228), do: "<228>"
-  defp opname(229), do: "<229>"
-  defp opname(230), do: "<230>"
-  defp opname(231), do: "<231>"
-  defp opname(232), do: "<232>"
-  defp opname(233), do: "<233>"
-  defp opname(234), do: "<234>"
-  defp opname(235), do: "<235>"
-  defp opname(236), do: "<236>"
-  defp opname(237), do: "<237>"
-  defp opname(238), do: "<238>"
-  defp opname(239), do: "<239>"
-  defp opname(240), do: "<240>"
-  defp opname(241), do: "<241>"
-  defp opname(242), do: "<242>"
-  defp opname(243), do: "<243>"
-  defp opname(244), do: "<244>"
-  defp opname(245), do: "<245>"
-  defp opname(246), do: "<246>"
-  defp opname(247), do: "<247>"
-  defp opname(248), do: "<248>"
-  defp opname(249), do: "<249>"
-  defp opname(250), do: "<250>"
-  defp opname(251), do: "<251>"
-  defp opname(252), do: "<252>"
-  defp opname(253), do: "<253>"
-  defp opname(254), do: "<254>"
-  defp opname(255), do: "<255>"
+
+  defp execute_instructions(state = %EPython.InterpreterState{framestack: []}) do
+    # Not really sure what to do here. We returned from the top-level.
+    state
+  end
 
   defp execute_instructions(state) do
-    if state.pc < byte_size(state.code[:code]) do
-      <<opcode, arg>> = binary_part state.code[:code], state.pc, 2
+    [frame | framestack] = state.framestack
 
-      execute_instruction(opcode, arg, state) |> execute_instructions()
+    if frame.pc < byte_size(frame.code[:code]) do
+      <<opcode, arg>> = binary_part frame.code[:code], frame.pc, 2
+
+      # We increment the program counter here by 2 every time.
+      # This is so that we don't need to increase it in *every* instruction
+      # function. The caveat is that in JUMP_RELATIVE we need to subtract 2
+      # from the delta, but that's literally the only caveat.
+      frame = %{frame | pc: frame.pc + 2}
+      framestack = [frame | framestack]
+      state = %{state | framestack: framestack}
+
+      state = execute_instruction(opcode, arg, state)
+      execute_instructions state
     else
       state
     end
+  end
+
+  # POP_TOP
+  defp execute_instruction(1, _arg, state) do
+    [frame | framestack] = state.framestack
+    frame = %{frame | stack: tl(frame.stack)}
+    framestack = [frame | framestack]
+    %{state | framestack: framestack}
+  end
+
+  # TODO: Replace the BINARY_* instructions with macros.
+  # BINARY_MULTIPLY
+  defp execute_instruction(20, _arg, state) do
+    [frame | framestack] = state.framestack
+
+    [x | stack] = frame.stack
+    [y | stack] = stack
+
+    frame = %{frame | stack: [y * x | stack]}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
+  # BINARY_ADD
+  defp execute_instruction(23, _arg, state) do
+    [frame | framestack] = state.framestack
+
+    [x | stack] = frame.stack
+    [y | stack] = stack
+
+    frame = %{frame | stack: [y + x  | stack]}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
+  # RETURN_VALUE
+  defp execute_instruction(83, _arg, state) do
+    [frame | framestack] = state.framestack
+
+    case framestack do
+      [] ->
+        if hd(frame.stack) == :none do
+          %{state |  framestack: []}
+        else
+          raise RuntimeError, message: "Tried to RETURN_VALUE at module level that wasn't :none"
+        end
+
+      [parent | framestack] ->
+        parent = %{parent | stack: [hd(frame.stack) | parent.stack]}
+        framestack = [parent | framestack]
+
+        %{state | framestack: framestack}
+    end
+  end
+
+  # STORE_NAME
+  defp execute_instruction(90, arg, state) do
+    [frame | framestack] = state.framestack
+
+    name = elem(frame.code[:names], arg)
+
+    variables =
+      if Map.has_key?(frame.variables, name) do
+        %{frame.variables | name => hd(frame.stack)}
+      else
+        Map.put(frame.variables, name, hd(frame.stack))
+      end
+
+    frame = %{frame | variables: variables}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
+  # LOAD_CONST
+  defp execute_instruction(100, arg, state) do
+    [frame | framestack] = state.framestack
+
+    const = elem(frame.code[:consts], arg)
+
+    frame = %{frame | stack: [const | frame.stack]}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
+  # LOAD_NAME
+  defp execute_instruction(101, arg, state) do
+    [frame | framestack] = state.framestack
+
+    name = elem(frame.code[:names], arg)
+
+    b = builtins()
+    value = if Map.has_key?(b, name) do
+      b[name]
+    else
+      frame.variables[name]
+    end
+
+    frame = %{frame | stack: [value | frame.stack]}
+    framestack = [frame | framestack]
+    %{state | framestack: framestack}
+  end
+
+  # CALL_FUNCTION
+  defp execute_instruction(131, arg, state) do
+    [frame | framestack] = state.framestack
+
+    {args, stack} = Enum.reduce((1..arg),
+                                {[], frame.stack},
+                                fn _, {args, [head | tail]} -> {[head | args], tail} end)
+
+    [func | stack] = stack
+
+    result = case func do
+      %EPython.PyBuiltinFunction{} -> func.function.(args)
+      # TODO: User-defined functions
+    end
+
+    stack = [result | stack]
+    frame = %{frame | stack: stack}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
   end
 
   defp execute_instruction(opcode, arg, _state) do
@@ -276,7 +290,8 @@ defmodule EPython.Interpreter do
 
   def interpret(bf) do
     code = bf.code_obj
-    state = %EPython.InterpreterState{code: code, pc: 0, variables: %{}, stack: []}
+    state = %EPython.InterpreterState{framestack: [%EPython.PyFrame{code: code}]}
+
     execute_instructions state
   end
 end
