@@ -1,17 +1,18 @@
 defmodule EPython.Main do
   defp compile_python(filename) do
     case System.cmd "python3.6", ["-m", "compileall", filename] do
-      {output, code} when code != 0 ->
-        IO.puts "Something went wrong while compiling."
-        IO.puts "python's output was:"
-        IO.puts output
-        exit(code)
-
       {_, 0} ->
         dir = Path.join(Path.dirname(filename), "__pycache__")
         base = Path.basename(filename, ".py")
 
         Path.join(dir, base <> ".cpython-36.pyc")
+        
+      {output, code} ->
+        IO.puts "Something went wrong while compiling."
+        IO.puts "Python exited with code {code}"
+        IO.puts "python's output was:"
+        IO.puts output
+        exit(code)
     end
   end
 
