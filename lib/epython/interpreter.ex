@@ -8,7 +8,7 @@ defmodule EPython.Interpreter do
       "print" =>
         %EPython.PyBuiltinFunction{
           name: "print",
-          function: fn [arg] -> IO.inspect arg end
+          function: fn [arg] -> IO.puts arg end
         },
      }
   end
@@ -199,8 +199,12 @@ defmodule EPython.Interpreter do
 
     case framestack do
       [] ->
+        # RETURN_VALUEs at the module level are kind of a strange thing.
+        # I just return the framestack as-is (with some sanity checks) for now,
+        # but I'm not sure if a RETURN_VALUE can occur before the end of the
+        # module.
         if hd(frame.stack) == :none do
-          %{state |  framestack: []}
+          %{state |  framestack: [frame]}
         else
           raise RuntimeError, message: "Tried to RETURN_VALUE at module level that wasn't :none"
         end
@@ -292,6 +296,6 @@ defmodule EPython.Interpreter do
     code = bf.code_obj
     state = %EPython.InterpreterState{framestack: [%EPython.PyFrame{code: code}]}
 
-    execute_instructions state
+    IO.inspect(execute_instructions state)
   end
 end
