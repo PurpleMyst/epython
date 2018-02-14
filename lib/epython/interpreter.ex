@@ -8,7 +8,7 @@ defmodule EPython.Interpreter do
       "print" =>
         %EPython.PyBuiltinFunction{
           name: "print",
-          function: fn [arg] -> IO.puts arg end
+          function: fn args -> IO.puts Enum.join(args, " ") end
         },
      }
   end
@@ -171,10 +171,10 @@ defmodule EPython.Interpreter do
   defp execute_instruction(20, _arg, state) do
     [frame | framestack] = state.framestack
 
-    [x | stack] = frame.stack
-    [y | stack] = stack
+    [y | stack] = frame.stack
+    [x | stack] = stack
 
-    frame = %{frame | stack: [y * x | stack]}
+    frame = %{frame | stack: [x * y | stack]}
     framestack = [frame | framestack]
 
     %{state | framestack: framestack}
@@ -184,10 +184,23 @@ defmodule EPython.Interpreter do
   defp execute_instruction(23, _arg, state) do
     [frame | framestack] = state.framestack
 
-    [x | stack] = frame.stack
-    [y | stack] = stack
+    [y | stack] = frame.stack
+    [x | stack] = stack
 
-    frame = %{frame | stack: [y + x  | stack]}
+    frame = %{frame | stack: [x + y  | stack]}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
+  # BINARY_SUBTRACT
+  defp execute_instruction(24, _arg, state) do
+    [frame | framestack] = state.framestack
+
+    [y | stack] = frame.stack
+    [x | stack] = stack
+
+    frame = %{frame | stack: [x - y | stack]}
     framestack = [frame | framestack]
 
     %{state | framestack: framestack}
