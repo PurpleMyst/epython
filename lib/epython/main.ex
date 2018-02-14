@@ -7,7 +7,7 @@ defmodule EPython.Main do
         IO.puts output
         exit(code)
 
-      {"", 0} ->
+      {_, 0} ->
         dir = Path.join(Path.dirname(filename), "__pycache__")
         base = Path.basename(filename, ".py")
 

@@ -194,6 +194,20 @@ defmodule EPython.Interpreter do
     %{state | framestack: framestack}
   end
 
+  # BINARY_MODULO
+  # TODO: Test the semantics of modulo with negative numbers.
+  defp execute_instruction(22, _arg, state) do
+    [frame | framestack] = state.framestack
+
+    [y | stack] = frame.stack
+    [x | stack] = stack
+
+    frame = %{frame | stack: [rem(x, y) | stack]}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
   # BINARY_ADD
   defp execute_instruction(23, _arg, state) do
     [frame | framestack] = state.framestack
@@ -322,6 +336,70 @@ defmodule EPython.Interpreter do
     %{state | framestack: framestack}
   end
 
+  # COMPARE_OP
+  defp execute_instruction(107, arg, state) do
+    [frame | framestack] = state.framestack
+
+    [y | stack] = frame.stack
+    [x | stack] = stack
+
+    result = case arg do
+      0 -> x < y
+      1 -> x <= y
+      2 -> x == y
+      3 -> x != y
+      4 -> x > y
+      5 -> x >= y
+      6 -> x in y
+      7 -> x not in y
+      #8 -> x is y
+      #9 -> x is not y
+      #10 -> 'exception match'
+      #11 -> 'BAD'
+    end
+
+    frame = %{frame | stack: [result | stack]}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
+  # JUMP_FORWARD
+  defp execute_instruction(110, arg, state) do
+    [frame | framestack] = state.framestack
+    # remember, we have to account for always adding 2
+    frame = %{frame | pc: frame.pc + (arg - 2)}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
+  # POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE
+  defp execute_instruction(opcode, arg, state) when opcode == 114 or opcode == 115 do
+    [frame | framestack] = state.framestack
+    [head | stack] = frame.stack
+
+    should_jump =
+      if opcode == 114 do  # POP_JUMP_IF_FALSE
+        not is_truthy(head)
+      else
+        is_truthy(head)
+      end
+
+    pc =
+      if should_jump do
+        arg
+      else
+        frame.pc
+      end
+
+    frame = %{frame | pc: pc}
+    frame = %{frame | stack: stack}
+    framestack = [frame | framestack]
+
+    %{state | framestack: framestack}
+  end
+
   # LOAD_FAST
   defp execute_instruction(124, arg, state) do
     [frame | framestack] = state.framestack
@@ -395,6 +473,21 @@ defmodule EPython.Interpreter do
   defp execute_instruction(opcode, arg, _state) do
     raise ArgumentError, message: "Unknown instruction #{opcode} with opname #{inspect opname(opcode)} and arg #{arg}"
   end
+
+  # TODO: Maybe use a protocol?
+  # is_truthy(integer)
+  defp is_truthy(0), do: false
+  defp is_truthy(n) when is_integer(n), do: true
+
+  # is_truthy(float)
+  defp is_truthy(0.0), do: false
+  defp is_truthy(n) when is_float(n), do: true
+
+  # is_truthy(atom)
+  defp is_truthy(:true), do: true
+  defp is_truthy(:ellipsis), do: true
+  defp is_truthy(:stopiteration), do: true
+  defp is_truthy(n) when is_atom(n), do: false
 
   def interpret(bf) do
     code = bf.code_obj
