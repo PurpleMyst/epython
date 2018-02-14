@@ -28,87 +28,86 @@ defmodule EPython.MarshalTest do
 
   test "can unmarshal positive ints" do
     data = <<?i, 1, 0, 0, 0>>
-    assert EPython.Marshal.unmarshal(data) == [{:integer, 1}]
+    assert EPython.Marshal.unmarshal(data) == [1]
   end
 
   test "can unmarshal negative ints" do
     data = <<?i, 255, 255, 255, 255>>
-    assert EPython.Marshal.unmarshal(data) == [{:integer, -1}]
+    assert EPython.Marshal.unmarshal(data) == [-1]
   end
 
   test "can unmarshal floats" do
     data = <<?g, 119, 190, 159, 26, 47, 221, 94, 64>>
-    assert EPython.Marshal.unmarshal(data) == [{:float, 123.456}]
+    assert EPython.Marshal.unmarshal(data) == [123.456]
   end
 
   test "can unmarshal complex numbers" do
     data = <<?y, 0, 0, 0, 0, 0, 0, 240, 63, 0, 0, 0, 0, 0, 0, 8, 64>>
-    assert EPython.Marshal.unmarshal(data) == [{:complex, {1, 3}}]
+    assert EPython.Marshal.unmarshal(data) == [{1, 3}]
   end
 
   test "can unmarshal small tuples" do
     data = <<?), 3, 233, 1, 0, 0, 0, 231, 102, 102, 102, 102, 102, 102, 2, 64, 121, 0, 0, 0, 0, 0, 0, 8, 64, 0, 0, 0, 0, 0, 0, 16, 64>>
-    assert EPython.Marshal.unmarshal(data) == [{:tuple, [{:integer, 1}, {:float, 2.3}, {:complex, {3.0, 4.0}}]}]
+    assert EPython.Marshal.unmarshal(data) == [[1, 2.3, {3.0, 4.0}]]
   end
 
-  defp test_sequence(type_atom, type_char) do
+  defp test_sequence(type_char) do
     <<_, data :: binary>> = File.read! "test/data/large_tuple.marshal"
     data = <<type_char, data :: binary>>
 
     result = EPython.Marshal.unmarshal(data)
 
-    assert [{^type_atom, _}] = result
-    [{^type_atom, contents}] = result
+    [contents] = result
 
-    Enum.reduce(contents, fn {:integer, current}, {:integer, last} ->
+    Enum.reduce(contents, fn current, last ->
       assert last + 1 == current
-      {:integer, current}
+      current
     end)
   end
 
   test "can unmarshal large tuples" do
-    test_sequence(:tuple, ?()
+    test_sequence(?()
   end
 
   test "can unmarshal lists" do
-    test_sequence(:list, ?[)
+    test_sequence(?[)
   end
 
   test "can unmarshal set" do
-    test_sequence(:set, ?<)
+    test_sequence(?<)
   end
 
   test "can unmarshal frozensets" do
-    test_sequence(:frozenset, ?>)
+    test_sequence(?>)
   end
 
   test "can handle empty sequences" do
-    assert EPython.Marshal.unmarshal("\xa9\x00") == [{:tuple, []}]
-    assert EPython.Marshal.unmarshal("\xdb\x00\x00\x00\x00") == [{:list, []}]
+    assert EPython.Marshal.unmarshal("\xa9\x00") == [[]]
+    assert EPython.Marshal.unmarshal("\xdb\x00\x00\x00\x00") == [[]]
   end
 
   test "can unmarshal dicts" do
     data = "\xfb\xe9\x01\x00\x00\x00\xe9\x02\x00\x00\x00\xe9\x03\x00\x00\x00\xe9\x04\x00\x00\x000"
-    assert EPython.Marshal.unmarshal(data) == [{:dict, [{{:integer, 1}, {:integer, 2}}, {{:integer, 3}, {:integer, 4}}]}]
+    assert EPython.Marshal.unmarshal(data) == [[{1, 2}, {3, 4}]]
   end
 
   test "can unmarshal references" do
     data = "\xdb\x02\x00\x00\x00\xdb\x00\x00\x00\x00r\x01\x00\x00\x00"
-    assert EPython.Marshal.unmarshal(data) == [{:list, [{:list, []}, {:list, []}]}]
+    assert EPython.Marshal.unmarshal(data) == [[[], []]]
   end
 
   test "can unmarshal short ascii strings" do
     data = "\xfa\x13Elixir is very cool"
-    assert EPython.Marshal.unmarshal(data) == [{:string, "Elixir is very cool"}]
+    assert EPython.Marshal.unmarshal(data) == ["Elixir is very cool"]
   end
 
   test "can unmarshal non-short ascii strings" do
     data = "\xe1\x01\x01\x00\x00ihNGRgAUqwoGdMGPcTAOTSGfilYWtdSwcjZMjcJBRYOkJkljpRJVXXFVeYhDrykdGovOXBJfxPXSkhAoOFumeEcqfFTAfYpCCgiSoDWaHScIsUqZnOpUfFPrJeNuDboFxlUGYMehRpecWxIgRcuUOSylHApfjlGEkhiEglkDYFLWhlEvugmkvOOwrcCmdgkNwEhdglZpSGvQoqDWOmRpktniQPWaYfVQwTvHAXtwXlvanAFtPDqpxbpkrsFeNQasl"
-    assert EPython.Marshal.unmarshal(data) == [{:string, "ihNGRgAUqwoGdMGPcTAOTSGfilYWtdSwcjZMjcJBRYOkJkljpRJVXXFVeYhDrykdGovOXBJfxPXSkhAoOFumeEcqfFTAfYpCCgiSoDWaHScIsUqZnOpUfFPrJeNuDboFxlUGYMehRpecWxIgRcuUOSylHApfjlGEkhiEglkDYFLWhlEvugmkvOOwrcCmdgkNwEhdglZpSGvQoqDWOmRpktniQPWaYfVQwTvHAXtwXlvanAFtPDqpxbpkrsFeNQasl"}]
+    assert EPython.Marshal.unmarshal(data) == ["ihNGRgAUqwoGdMGPcTAOTSGfilYWtdSwcjZMjcJBRYOkJkljpRJVXXFVeYhDrykdGovOXBJfxPXSkhAoOFumeEcqfFTAfYpCCgiSoDWaHScIsUqZnOpUfFPrJeNuDboFxlUGYMehRpecWxIgRcuUOSylHApfjlGEkhiEglkDYFLWhlEvugmkvOOwrcCmdgkNwEhdglZpSGvQoqDWOmRpktniQPWaYfVQwTvHAXtwXlvanAFtPDqpxbpkrsFeNQasl"]
   end
 
   test "can unmarshal unicode strings" do
     data = "\xf5\x0e\x00\x00\x00\xc3\xb2\xc3\xa0\xc3\xb9\xc3\xa8+\xc2\xa1@\xc2\xb7"
-    assert EPython.Marshal.unmarshal(data) == [{:string, "òàùè+¡@·"}]
+    assert EPython.Marshal.unmarshal(data) == ["òàùè+¡@·"]
   end
 end

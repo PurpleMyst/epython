@@ -43,47 +43,46 @@ defmodule EPython.Marshal do
 
   # int32
   defp unmarshal_once(<< 0 :: 1, ?i :: 7, n :: 32-signed-little, rest :: binary >>, refs) do
-    {{:integer, n}, rest, refs}
+    {n, rest, refs}
   end
 
   # float64
   defp unmarshal_once(<< 0 :: 1, ?g :: 7, n :: float-little, rest :: binary >>, refs) do
-    {{:float, n}, rest, refs}
+    {n, rest, refs}
   end
 
   # complex
   defp unmarshal_once(<< 0 :: 1, ?y :: 7, a :: float-little, b :: float-little, rest :: binary >>, refs) do
-    {{:complex, {a, b}}, rest, refs}
+    {{a, b}, rest, refs}
   end
 
   # short ascii
   defp unmarshal_once(<< 0 :: 1, type :: 7, size :: 8, rest :: binary >>, refs) when type in 'zZ' do
     contents = binary_part rest, 0, size
     rester = binary_part rest, size, byte_size(rest) - size
-    {{:string, contents}, rester, refs}
+    {contents, rester, refs}
   end
 
   # strings
   defp unmarshal_once(<< 0 :: 1, type :: 7, size :: 32-little, rest :: binary >>, refs) when type in 'aAuts' do
     contents = binary_part rest, 0, size
     rester = binary_part rest, size, byte_size(rest) - size
-    {{:string, contents}, rester, refs}
+    {contents, rester, refs}
   end
 
   # small tuple
   defp unmarshal_once(<< 0 :: 1, ?) :: 7, size :: 8, rest :: binary >>, refs) do
     if size == 0 do
-      {{:tuple, []}, rest, refs}
+      {[], rest, refs}
     else
       {contents, rester, refs} = Enum.reduce((1..size), {[], rest, refs}, &unmarshal_item/2)
-      {{:tuple, Enum.reverse contents}, rester, refs}
+      {Enum.reverse(contents), rester, refs}
     end
   end
 
   # dict
   defp unmarshal_once(<< 0 :: 1, ?{ :: 7, data :: binary >>, refs) do
-    {pairs, rest, refs} = unmarshal_dict_pairs(data, refs)
-    {{:dict, pairs}, rest, refs}
+    unmarshal_dict_pairs(data, refs)
   end
 
   # code
@@ -102,7 +101,7 @@ defmodule EPython.Marshal do
           end
       end)
 
-    {{:code, pairs}, rest, refs}
+    {pairs, rest, refs}
   end
 
   # references
@@ -112,12 +111,7 @@ defmodule EPython.Marshal do
 
   # sequences
   defp unmarshal_once(<<0 :: 1, type :: 7, data :: binary>>, refs) when type in '([<>' do
-    case type do
-      ?( -> unmarshal_sequence :tuple,     data, refs
-      ?[ -> unmarshal_sequence :list,      data, refs
-      ?< -> unmarshal_sequence :set,       data, refs
-      ?> -> unmarshal_sequence :frozenset, data, refs
-    end
+    unmarshal_sequence data, refs
   end
 
   defp unmarshal_once(<< 0 :: 1, type :: 7, _ :: binary >>, _) do
@@ -140,12 +134,12 @@ defmodule EPython.Marshal do
     end
   end
 
-  defp unmarshal_sequence(type, << size :: 32-signed-little, rest :: binary >>, refs) when is_atom(type) do
+  defp unmarshal_sequence(<< size :: 32-signed-little, rest :: binary >>, refs) do
     if size == 0 do
-      {{type, []}, rest, refs}
+      {[], rest, refs}
     else
       {contents, rester, refs} = Enum.reduce((1..size), {[], rest, refs}, &unmarshal_item/2)
-      {{type, Enum.reverse contents}, rester, refs}
+      {Enum.reverse(contents), rester, refs}
     end
   end
 
@@ -156,7 +150,7 @@ defmodule EPython.Marshal do
 
   # XXX: This is not the same as a PyLong.
   defp unmarshal_long(<< a, b, c, d, rest :: binary>>) do
-    {{:integer, :binary.decode_unsigned(<<a, b, c, d>>, :little)}, rest}
+    {:binary.decode_unsigned(<<a, b, c, d>>, :little), rest}
   end
 
   # TODO: Convert the reference linked list into a map or something more
