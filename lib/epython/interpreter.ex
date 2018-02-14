@@ -1,3 +1,7 @@
+defmodule EPython.InterpreterState do
+  defstruct [:code, :pc, :variables, :stack]
+end
+
 defmodule EPython.Interpreter do
   defp opname(0), do: "<0>"
   defp opname(1), do: "POP_TOP"
@@ -256,17 +260,23 @@ defmodule EPython.Interpreter do
   defp opname(254), do: "<254>"
   defp opname(255), do: "<255>"
 
-  defp print_instructions(<< opcode, arg, rest :: binary >>) do
-    IO.puts "#{opname opcode} #{inspect arg}"
-    print_instructions rest
+  defp execute_instructions(state) do
+    if state.pc < byte_size(state.code[:code]) do
+      <<opcode, arg>> = binary_part state.code[:code], state.pc, 2
+
+      execute_instruction(opcode, arg, state) |> execute_instructions()
+    else
+      state
+    end
   end
 
-  defp print_instructions(<<>>) do
-
+  defp execute_instruction(opcode, arg, _state) do
+    raise ArgumentError, message: "Unknown instruction #{opcode} with opname #{inspect opname(opcode)} and arg #{arg}"
   end
 
   def interpret(bf) do
-    co = bf.code_obj
-    print_instructions co[:code]
+    code = bf.code_obj
+    state = %EPython.InterpreterState{code: code, pc: 0, variables: %{}, stack: []}
+    execute_instructions state
   end
 end

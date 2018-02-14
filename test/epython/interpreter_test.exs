@@ -3,5 +3,6 @@ defmodule EPython.InterpreterTest do
 
   test "playground test" do
     {:ok, bf} = EPython.BytecodeFile.from_file "test/data/__pycache__/codeobject_test.cpython-36.pyc"
+    EPython.Interpreter.interpret bf
   end
 end
