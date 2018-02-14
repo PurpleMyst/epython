@@ -73,16 +73,17 @@ defmodule EPython.Marshal do
   # small tuple
   defp unmarshal_once(<< 0 :: 1, ?) :: 7, size :: 8, rest :: binary >>, refs) do
     if size == 0 do
-      {[], rest, refs}
+      {{}, rest, refs}
     else
       {contents, rester, refs} = Enum.reduce((1..size), {[], rest, refs}, &unmarshal_item/2)
-      {Enum.reverse(contents), rester, refs}
+      {List.to_tuple(Enum.reverse(contents)), rester, refs}
     end
   end
 
   # dict
   defp unmarshal_once(<< 0 :: 1, ?{ :: 7, data :: binary >>, refs) do
-    unmarshal_dict_pairs(data, refs)
+    {pairs, rest, refs} = unmarshal_dict_pairs(data, refs)
+    {Map.new(pairs), rest, refs}
   end
 
   # code
@@ -111,7 +112,15 @@ defmodule EPython.Marshal do
 
   # sequences
   defp unmarshal_once(<<0 :: 1, type :: 7, data :: binary>>, refs) when type in '([<>' do
-    unmarshal_sequence data, refs
+    {list, rest, refs} = unmarshal_sequence(data, refs)
+
+    sequence = case type do
+      ?( -> List.to_tuple(list)
+      ?[ -> list
+      c when c in '<>' -> MapSet.new(list)
+    end
+
+    {sequence, rest, refs}
   end
 
   defp unmarshal_once(<< 0 :: 1, type :: 7, _ :: binary >>, _) do

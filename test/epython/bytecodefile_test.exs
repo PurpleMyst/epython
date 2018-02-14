@@ -21,19 +21,19 @@ defmodule EPython.BytecodeFileTest do
     co = bf.code_obj
 
     assert co[:argcount]       == 0
-    assert co[:cellvars]       == []
+    assert co[:cellvars]       == {}
     assert co[:code]           == "d\x00Z\x00d\x01Z\x01d\x02Z\x02e\x03e\x00e\x01\x14\x00e\x02\x17\x00\x83\x01\x01\x00d\x03S\x00"
-    assert co[:consts]         == [3, 7, 9, :none]
+    assert co[:consts]         == {3, 7, 9, :none}
     assert co[:filename]       == "test/data/codeobject_test.py"
     assert co[:firstlineno]    == 3
     assert co[:flags]          == 64
-    assert co[:freevars]       == []
+    assert co[:freevars]       == {}
     assert co[:kwonlyargcount] == 0
     assert co[:lnotab]         == "\x04\x01\x04\x01\x04\x02"
     assert co[:name]           == "<module>"
-    assert co[:names]          == ["a", "b", "c", "print"]
+    assert co[:names]          == {"a", "b", "c", "print"}
     assert co[:nlocals]        == 0
     assert co[:stacksize]      == 3
-    assert co[:varnames]       == []
+    assert co[:varnames]       == {}
   end
 end

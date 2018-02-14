@@ -48,21 +48,35 @@ defmodule EPython.MarshalTest do
 
   test "can unmarshal small tuples" do
     data = <<?), 3, 233, 1, 0, 0, 0, 231, 102, 102, 102, 102, 102, 102, 2, 64, 121, 0, 0, 0, 0, 0, 0, 8, 64, 0, 0, 0, 0, 0, 0, 16, 64>>
-    assert EPython.Marshal.unmarshal(data) == [[1, 2.3, {3.0, 4.0}]]
+    assert EPython.Marshal.unmarshal(data) == [{1, 2.3, {3.0, 4.0}}]
   end
 
   defp test_sequence(type_char) do
     <<_, data :: binary>> = File.read! "test/data/large_tuple.marshal"
     data = <<type_char, data :: binary>>
 
-    result = EPython.Marshal.unmarshal(data)
+    [contents] = EPython.Marshal.unmarshal(data)
 
-    [contents] = result
+    contents = case type_char do
+      ?( ->
+        assert is_tuple(contents)
+        Tuple.to_list(contents)
 
-    Enum.reduce(contents, fn current, last ->
+      ?[ ->
+        assert is_list(contents)
+        contents
+
+      c when c in '<>' ->
+        assert match?(%MapSet{}, contents)
+        Enum.sort(MapSet.to_list(contents))
+    end
+
+    last = Enum.reduce(contents, fn current, last ->
       assert last + 1 == current
       current
     end)
+
+    assert last == 500
   end
 
   test "can unmarshal large tuples" do
@@ -82,13 +96,14 @@ defmodule EPython.MarshalTest do
   end
 
   test "can handle empty sequences" do
-    assert EPython.Marshal.unmarshal("\xa9\x00") == [[]]
+    assert EPython.Marshal.unmarshal("\xa9\x00") == [{}]
     assert EPython.Marshal.unmarshal("\xdb\x00\x00\x00\x00") == [[]]
+    # TODO: Test Map & Set
   end
 
   test "can unmarshal dicts" do
     data = "\xfb\xe9\x01\x00\x00\x00\xe9\x02\x00\x00\x00\xe9\x03\x00\x00\x00\xe9\x04\x00\x00\x000"
-    assert EPython.Marshal.unmarshal(data) == [[{1, 2}, {3, 4}]]
+    assert EPython.Marshal.unmarshal(data) == [%{1 => 2, 3 => 4}]
   end
 
   test "can unmarshal references" do
