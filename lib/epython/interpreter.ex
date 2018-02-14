@@ -263,6 +263,8 @@ defmodule EPython.Interpreter do
 
   # LOAD_NAME
   defp execute_instruction(101, arg, state) do
+    # TODO: Look in the parents if we can't find it here.
+
     [frame | framestack] = state.framestack
 
     name = elem(frame.code[:names], arg)
@@ -279,6 +281,19 @@ defmodule EPython.Interpreter do
     %{state | framestack: framestack}
   end
 
+  # LOAD_FAST
+  defp execute_instruction(124, arg, state) do
+    [frame | framestack] = state.framestack
+
+    name = elem(frame.code[:varnames], arg)
+
+    value = frame.variables[name]
+
+    frame = %{frame | stack: [value | frame.stack]}
+    framestack = [frame | framestack]
+    %{state | framestack: framestack}
+  end
+
   # CALL_FUNCTION
   defp execute_instruction(131, arg, state) do
     [frame | framestack] = state.framestack
@@ -289,12 +304,47 @@ defmodule EPython.Interpreter do
 
     [func | stack] = stack
 
-    result = case func do
-      %EPython.PyBuiltinFunction{} -> func.function.(args)
-      # TODO: User-defined functions
+    case func do
+      %EPython.PyBuiltinFunction{} ->
+        result = func.function.(args)
+
+        stack = [result | stack]
+        frame = %{frame | stack: stack}
+        framestack = [frame | framestack]
+
+        %{state | framestack: framestack}
+
+      %EPython.PyUserFunction{} ->
+        pairs = Enum.zip(Tuple.to_list(func.code[:varnames]), args)
+        variables = Enum.reduce(pairs, %{}, fn {name, value}, variables ->
+          Map.put(variables, name, value)
+        end)
+
+        func_frame = %EPython.PyFrame{code: func.code, variables: variables}
+
+        frame = %{frame | stack: stack}
+        framestack = [frame | framestack]
+        framestack = [func_frame | framestack]
+
+        state = %{state | framestack: framestack}
+         execute_instructions state
+    end
+  end
+
+  # MAKE_FUNCTION
+  defp execute_instruction(132, arg, state) do
+    if arg != 0 do
+      raise ArgumentError, message: "Flags for MAKE_FUNCTION are not supported yet."
     end
 
-    stack = [result | stack]
+    [frame | framestack] = state.framestack
+
+    [fname | stack] = frame.stack
+    [fcode | stack] = stack
+
+    func = %EPython.PyUserFunction{name: fname, code: fcode}
+
+    stack = [func | stack]
     frame = %{frame | stack: stack}
     framestack = [frame | framestack]
 
@@ -309,6 +359,6 @@ defmodule EPython.Interpreter do
     code = bf.code_obj
     state = %EPython.InterpreterState{framestack: [%EPython.PyFrame{code: code}]}
 
-    IO.inspect(execute_instructions state)
+    execute_instructions state
   end
 end
