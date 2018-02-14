@@ -1,6 +1,6 @@
 defmodule EPython.PyFrame do
   @enforce_keys [:code]
-  defstruct [:code, {:pc, 0}, {:variables, %{}}, {:stack, []}]
+  defstruct [:code, {:pc, 0}, {:variables, %{}}, {:stack, []}, :previous_frame]
 end
 
 defmodule EPython.PyBuiltinFunction do

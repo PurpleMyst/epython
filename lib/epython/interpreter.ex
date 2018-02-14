@@ -1,5 +1,5 @@
 defmodule EPython.InterpreterState do
-  defstruct [:framestack]
+  defstruct [:topframe]
 end
 
 defmodule EPython.Interpreter do
@@ -132,13 +132,8 @@ defmodule EPython.Interpreter do
   defp opname(157), do: "BUILD_STRING"
   defp opname(158), do: "BUILD_TUPLE_UNPACK_WITH_CALL"
 
-  defp execute_instructions(state = %EPython.InterpreterState{framestack: []}) do
-    # Not really sure what to do here. We returned from the top-level.
-    state
-  end
-
   defp execute_instructions(state) do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
 
     if frame.pc < byte_size(frame.code[:code]) do
       <<opcode, arg>> = binary_part frame.code[:code], frame.pc, 2
@@ -148,8 +143,7 @@ defmodule EPython.Interpreter do
       # function. The caveat is that in JUMP_RELATIVE we need to subtract 2
       # from the delta, but that's literally the only caveat.
       frame = %{frame | pc: frame.pc + 2}
-      framestack = [frame | framestack]
-      state = %{state | framestack: framestack}
+      state = %{state | topframe: frame}
 
       state = execute_instruction(opcode, arg, state)
       execute_instructions state
@@ -160,134 +154,118 @@ defmodule EPython.Interpreter do
 
   # POP_TOP
   defp execute_instruction(1, _arg, state) do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
     frame = %{frame | stack: tl(frame.stack)}
-    framestack = [frame | framestack]
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # TODO: Replace the BINARY_* instructions with macros.
 
   # BINARY_POWER
   defp execute_instruction(19, _arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [y | stack] = frame.stack
     [x | stack] = stack
 
     frame = %{frame | stack: [:math.pow(x, y) | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # BINARY_MULTIPLY
   defp execute_instruction(20, _arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [y | stack] = frame.stack
     [x | stack] = stack
 
     frame = %{frame | stack: [x * y | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # BINARY_MODULO
   # TODO: Test the semantics of modulo with negative numbers.
   defp execute_instruction(22, _arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [y | stack] = frame.stack
     [x | stack] = stack
 
     frame = %{frame | stack: [rem(x, y) | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # BINARY_ADD
   defp execute_instruction(23, _arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [y | stack] = frame.stack
     [x | stack] = stack
 
     frame = %{frame | stack: [x + y  | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # BINARY_SUBTRACT
   defp execute_instruction(24, _arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [y | stack] = frame.stack
     [x | stack] = stack
 
     frame = %{frame | stack: [x - y | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # BINARY_FLOOR_DIVIDE
   defp execute_instruction(26, _arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [y | stack] = frame.stack
     [x | stack] = stack
 
     frame = %{frame | stack: [:math.floor(x / y) | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # BINARY_TRUE_DIVIDE
   defp execute_instruction(27, _arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [y | stack] = frame.stack
     [x | stack] = stack
 
     frame = %{frame | stack: [x / y | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
-
 
   # RETURN_VALUE
   defp execute_instruction(83, _arg, state) do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
 
-    case framestack do
-      [] ->
+    case frame.previous_frame do
+      nil ->
         # RETURN_VALUEs at the module level are kind of a strange thing.
-        # I just return the framestack as-is (with some sanity checks) for now,
+        # I just return the state as-is (with some sanity checks) for now,
         # but I'm not sure if a RETURN_VALUE can occur before the end of the
         # module.
         if hd(frame.stack) == :none do
-          %{state |  framestack: [frame]}
+          state
         else
           raise RuntimeError, message: "Tried to RETURN_VALUE at module level that wasn't :none"
         end
 
-      [parent | framestack] ->
+      parent ->
         parent = %{parent | stack: [hd(frame.stack) | parent.stack]}
-        framestack = [parent | framestack]
 
-        %{state | framestack: framestack}
+        %{state | topframe: parent}
     end
   end
 
   # STORE_NAME
   defp execute_instruction(90, arg, state) do
-    [frame | framestack] = state.framestack
+    # TODO: What's the difference between this and STORE_FAST?
+    frame = state.topframe
 
     name = elem(frame.code[:names], arg)
 
@@ -299,28 +277,23 @@ defmodule EPython.Interpreter do
       end
 
     frame = %{frame | variables: variables}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # LOAD_CONST
   defp execute_instruction(100, arg, state) do
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     const = elem(frame.code[:consts], arg)
-
     frame = %{frame | stack: [const | frame.stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # LOAD_NAME
   defp execute_instruction(101, arg, state) do
     # TODO: Look in the parents if we can't find it here.
-
-    [frame | framestack] = state.framestack
+    frame = state.topframe
 
     name = elem(frame.code[:names], arg)
 
@@ -332,13 +305,12 @@ defmodule EPython.Interpreter do
     end
 
     frame = %{frame | stack: [value | frame.stack]}
-    framestack = [frame | framestack]
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # COMPARE_OP
   defp execute_instruction(107, arg, state) do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
 
     [y | stack] = frame.stack
     [x | stack] = stack
@@ -359,31 +331,29 @@ defmodule EPython.Interpreter do
     end
 
     frame = %{frame | stack: [result | stack]}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # JUMP_FORWARD
   defp execute_instruction(110, arg, state) do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
     # remember, we have to account for always adding 2
     frame = %{frame | pc: frame.pc + (arg - 2)}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   # POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE
   defp execute_instruction(opcode, arg, state) when opcode == 114 or opcode == 115 do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
     [head | stack] = frame.stack
 
     should_jump =
       if opcode == 114 do  # POP_JUMP_IF_FALSE
-        not is_truthy(head)
+        not truthy?(head)
       else
-        is_truthy(head)
+        truthy?(head)
       end
 
     pc =
@@ -395,27 +365,67 @@ defmodule EPython.Interpreter do
 
     frame = %{frame | pc: pc}
     frame = %{frame | stack: stack}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
+  end
+
+  # LOAD_GLOBAL
+  defp execute_instruction(116, arg, state) do
+    frame = state.topframe
+    module_frame = get_module_frame frame
+
+    name = elem(frame.code[:names], arg)
+
+    b = builtins()
+    value =
+      if Map.has_key?(module_frame.variables, name) do
+        module_frame.variables[name]
+      else
+        if Map.has_key?(b, name) do
+          b[name]
+        else
+          raise RuntimeError, message: "Unknown global #{inspect name}"
+        end
+      end
+
+    frame = %{frame | stack: [value | frame.stack]}
+    %{state | topframe: frame}
   end
 
   # LOAD_FAST
   defp execute_instruction(124, arg, state) do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
 
     name = elem(frame.code[:varnames], arg)
 
     value = frame.variables[name]
 
     frame = %{frame | stack: [value | frame.stack]}
-    framestack = [frame | framestack]
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
+
+  # STORE_FAST
+  defp execute_instruction(125, arg, state) do
+    frame = state.topframe
+
+    name = elem(frame.code[:varnames], arg)
+
+    variables =
+      if Map.has_key?(frame.variables, name) do
+        %{frame.variables | name => hd(frame.stack)}
+      else
+        Map.put(frame.variables, name, hd(frame.stack))
+      end
+
+    frame = %{frame | variables: variables}
+
+    %{state | topframe: frame}
+  end
+
 
   # CALL_FUNCTION
   defp execute_instruction(131, arg, state) do
-    [frame | framestack] = state.framestack
+    frame = state.topframe
 
     {args, stack} = Enum.reduce((1..arg),
                                 {[], frame.stack},
@@ -429,9 +439,8 @@ defmodule EPython.Interpreter do
 
         stack = [result | stack]
         frame = %{frame | stack: stack}
-        framestack = [frame | framestack]
 
-        %{state | framestack: framestack}
+        %{state | topframe: frame}
 
       %EPython.PyUserFunction{} ->
         pairs = Enum.zip(Tuple.to_list(func.code[:varnames]), args)
@@ -439,14 +448,12 @@ defmodule EPython.Interpreter do
           Map.put(variables, name, value)
         end)
 
-        func_frame = %EPython.PyFrame{code: func.code, variables: variables}
-
         frame = %{frame | stack: stack}
-        framestack = [frame | framestack]
-        framestack = [func_frame | framestack]
+        func_frame = %EPython.PyFrame{code: func.code, variables: variables, previous_frame: frame}
 
-        state = %{state | framestack: framestack}
-         execute_instructions state
+        # TODO: Can we remove this call?
+        state = %{state | topframe: func_frame}
+        execute_instructions state
     end
   end
 
@@ -456,8 +463,7 @@ defmodule EPython.Interpreter do
       raise ArgumentError, message: "Flags for MAKE_FUNCTION are not supported yet."
     end
 
-    [frame | framestack] = state.framestack
-
+    frame = state.topframe
     [fname | stack] = frame.stack
     [fcode | stack] = stack
 
@@ -465,9 +471,8 @@ defmodule EPython.Interpreter do
 
     stack = [func | stack]
     frame = %{frame | stack: stack}
-    framestack = [frame | framestack]
 
-    %{state | framestack: framestack}
+    %{state | topframe: frame}
   end
 
   defp execute_instruction(opcode, arg, _state) do
@@ -475,23 +480,30 @@ defmodule EPython.Interpreter do
   end
 
   # TODO: Maybe use a protocol?
-  # is_truthy(integer)
-  defp is_truthy(0), do: false
-  defp is_truthy(n) when is_integer(n), do: true
+  # truthy?(integer)
+  defp truthy?(0), do: false
+  defp truthy?(n) when is_integer(n), do: true
 
-  # is_truthy(float)
-  defp is_truthy(0.0), do: false
-  defp is_truthy(n) when is_float(n), do: true
+  # truthy?(float)
+  defp truthy?(0.0), do: false
+  defp truthy?(n) when is_float(n), do: true
 
-  # is_truthy(atom)
-  defp is_truthy(:true), do: true
-  defp is_truthy(:ellipsis), do: true
-  defp is_truthy(:stopiteration), do: true
-  defp is_truthy(n) when is_atom(n), do: false
+  # truthy?(atom)
+  defp truthy?(:true), do: true
+  defp truthy?(:ellipsis), do: true
+  defp truthy?(:stopiteration), do: true
+  defp truthy?(n) when is_atom(n), do: false
+
+  defp get_module_frame(frame) do
+    case frame.previous_frame do
+      nil    -> frame
+      parent -> get_module_frame parent
+    end
+  end
 
   def interpret(bf) do
     code = bf.code_obj
-    state = %EPython.InterpreterState{framestack: [%EPython.PyFrame{code: code}]}
+    state = %EPython.InterpreterState{topframe: %EPython.PyFrame{code: code}}
 
     execute_instructions state
   end
