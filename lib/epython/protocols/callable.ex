@@ -1,19 +1,8 @@
-defprotocol EPython.PyIterable do
-  @doc "Create an iterator for a data structure."
-  def iter(data)
-end
-
-defprotocol EPython.PyIterator do
-  @doc "Return the next element in the iterator"
-  def next(iterator)
-end
-
 defprotocol EPython.PyCallable do
   @doc "Call a function"
   def call(func, args, state)
 end
 
-# some default implementations are provided here for elixir types.
 defimpl EPython.PyCallable, for: EPython.PyBuiltinFunction do
   def call(func, args, state) do
       frame = state.topframe
