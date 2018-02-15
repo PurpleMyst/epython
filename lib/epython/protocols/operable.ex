@@ -39,7 +39,7 @@ defimpl EPython.PyOperable, for: Float do
   def mod(x, y), do: rem(x, y)
 end
 
-defimpl EPython.PyOperable, for: String do
+defimpl EPython.PyOperable, for: String.t do
   def add(x, y), do: x <> y
 
   def sub(_, _), do: :notimplemented
