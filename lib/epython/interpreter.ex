@@ -264,21 +264,33 @@ defmodule EPython.Interpreter do
 
   # STORE_NAME
   defp execute_instruction(90, arg, state) do
-    # TODO: What's the difference between this and STORE_FAST?
-    frame = state.topframe
+    {value, frame} = pop_from_stack state.topframe
 
     name = elem(frame.code[:names], arg)
-
-    variables =
-      if Map.has_key?(frame.variables, name) do
-        %{frame.variables | name => hd(frame.stack)}
-      else
-        Map.put(frame.variables, name, hd(frame.stack))
-      end
+    variables = put_or_update frame.variables, name, value
 
     frame = %{frame | variables: variables}
-
     %{state | topframe: frame}
+  end
+
+  # UNPACK_SEQUENCE
+  defp execute_instruction(92, arg, state) do
+    if arg == 0 do
+      state
+    else
+      frame = state.topframe
+      [head | stack] = frame.stack
+
+      # XXX: We really need to fix tuples.
+      head = if(is_tuple(head), do: Tuple.to_list(head), else: head)
+
+      {_, stack} = Enum.reduce((1..arg), {head, stack}, fn _, {[item | rest], stack} ->
+        {rest, [item | stack]}
+      end)
+
+      frame = %{frame | stack: stack}
+      %{state | topframe: frame}
+    end
   end
 
   # LOAD_CONST
@@ -406,19 +418,12 @@ defmodule EPython.Interpreter do
 
   # STORE_FAST
   defp execute_instruction(125, arg, state) do
-    frame = state.topframe
+    {value, frame} = pop_from_stack state.topframe
 
     name = elem(frame.code[:varnames], arg)
-
-    variables =
-      if Map.has_key?(frame.variables, name) do
-        %{frame.variables | name => hd(frame.stack)}
-      else
-        Map.put(frame.variables, name, hd(frame.stack))
-      end
+    variables = put_or_update frame.variables, name, value
 
     frame = %{frame | variables: variables}
-
     %{state | topframe: frame}
   end
 
@@ -502,6 +507,19 @@ defmodule EPython.Interpreter do
     case frame.previous_frame do
       nil    -> frame
       parent -> get_module_frame parent
+    end
+  end
+
+  defp pop_from_stack(frame) do
+    [head | stack] = frame.stack
+    {head, %{frame | stack: stack}}
+  end
+
+  defp put_or_update(map, name, value) when is_map(map) do
+    if Map.has_key?(map, name) do
+      %{map | name => value}
+    else
+      Map.put(map, name, value)
     end
   end
 
