@@ -137,6 +137,7 @@ defmodule EPython.Interpreter do
 
     if frame.pc < byte_size(frame.code[:code]) do
       <<opcode, arg>> = binary_part frame.code[:code], frame.pc, 2
+      #IO.puts "#{frame.pc}: #{opname opcode} #{arg} (#{inspect frame.stack})"
 
       # We increment the program counter here by 2 every time.
       # This is so that we don't need to increase it in *every* instruction
@@ -351,7 +352,7 @@ defmodule EPython.Interpreter do
   defp execute_instruction(110, arg, state) do
     frame = state.topframe
     # remember, we have to account for always adding 2
-    frame = %{frame | pc: frame.pc + (arg - 2)}
+    frame = %{frame | pc: frame.pc + (2 * arg - 2)}
 
     %{state | topframe: frame}
   end
