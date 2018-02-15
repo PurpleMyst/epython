@@ -322,7 +322,7 @@ defmodule EPython.Interpreter do
       3 -> x != y
       4 -> x > y
       5 -> x >= y
-      6 -> x in y
+      6 -> if(is_tuple(y), do: x in Tuple.to_list(y), else: x in y)
       7 -> x not in y
       #8 -> x is y
       #9 -> x is not y
