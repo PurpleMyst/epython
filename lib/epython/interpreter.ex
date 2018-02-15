@@ -427,9 +427,13 @@ defmodule EPython.Interpreter do
   defp execute_instruction(131, arg, state) do
     frame = state.topframe
 
-    {args, stack} = Enum.reduce((1..arg),
-                                {[], frame.stack},
-                                fn _, {args, [head | tail]} -> {[head | args], tail} end)
+    {args, stack} =
+      if arg == 0 do
+        {[], frame.stack}
+      else
+        Enum.reduce((1..arg), {[], frame.stack},
+                    fn _, {args, [head | tail]} -> {[head | args], tail} end)
+      end
 
     [func | stack] = stack
 
