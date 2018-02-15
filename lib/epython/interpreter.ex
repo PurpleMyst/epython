@@ -443,28 +443,10 @@ defmodule EPython.Interpreter do
 
     [func | stack] = stack
 
-    case func do
-      %EPython.PyBuiltinFunction{} ->
-        result = func.function.(args)
+    frame = %{frame | stack: stack}
+    state = %{state | topframe: frame}
 
-        stack = [result | stack]
-        frame = %{frame | stack: stack}
-
-        %{state | topframe: frame}
-
-      %EPython.PyUserFunction{} ->
-        pairs = Enum.zip(Tuple.to_list(func.code[:varnames]), args)
-        variables = Enum.reduce(pairs, %{}, fn {name, value}, variables ->
-          Map.put(variables, name, value)
-        end)
-
-        frame = %{frame | stack: stack}
-        func_frame = %EPython.PyFrame{code: func.code, variables: variables, previous_frame: frame}
-
-        # TODO: Can we remove this call?
-        state = %{state | topframe: func_frame}
-        execute_instructions state
-    end
+    EPython.PyCallable.call(func, args, state)
   end
 
   # MAKE_FUNCTION

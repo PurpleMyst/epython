@@ -9,4 +9,11 @@ def fib(n):
     else:
         return fib(n - 1) + fib(n - 2)
 
-print(fib(10))
+
+def fib_upto(n):
+    if n > 0:
+        fib_upto(n - 1)
+    print(n, fib(n))
+
+
+fib_upto(10)
