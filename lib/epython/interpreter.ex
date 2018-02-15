@@ -160,6 +160,23 @@ defmodule EPython.Interpreter do
     %{state | topframe: frame}
   end
 
+  # TODO: Do we need a protocol for these?
+  # UNARY_POSITIVE
+  defp execute_instruction(10, _arg, state) do
+    {value, frame} = pop_from_stack state.topframe
+    value = EPython.PyOperable.mul(value, 1)
+    frame = %{frame | stack: [value | frame.stack]}
+    %{state | topframe: frame}
+  end
+
+  # UNARY_NEGATIVE
+  defp execute_instruction(11, _arg, state) do
+    {value, frame} = pop_from_stack state.topframe
+    value = EPython.PyOperable.mul(value, -1)
+    frame = %{frame | stack: [value | frame.stack]}
+    %{state | topframe: frame}
+  end
+
   # TODO: Replace the BINARY_* instructions with macros.
 
   # BINARY_POWER
@@ -474,7 +491,7 @@ defmodule EPython.Interpreter do
     raise ArgumentError, message: "Unknown instruction #{opcode} with opname #{inspect opname(opcode)} and arg #{arg}"
   end
 
-  # TODO: Maybe use a protocol?
+  # TODO: Move these to a protocol.
   # truthy?(integer)
   defp truthy?(0), do: false
   defp truthy?(n) when is_integer(n), do: true
