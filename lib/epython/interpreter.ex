@@ -168,6 +168,7 @@ defmodule EPython.Interpreter do
     [y | stack] = frame.stack
     [x | stack] = stack
 
+    # TODO: Add this to PyOperable.
     frame = %{frame | stack: [:math.pow(x, y) | stack]}
 
     %{state | topframe: frame}
@@ -179,7 +180,7 @@ defmodule EPython.Interpreter do
     [y | stack] = frame.stack
     [x | stack] = stack
 
-    frame = %{frame | stack: [x * y | stack]}
+    frame = %{frame | stack: [EPython.PyOperable.mul(x, y) | stack]}
 
     %{state | topframe: frame}
   end
@@ -191,10 +192,12 @@ defmodule EPython.Interpreter do
     [y | stack] = frame.stack
     [x | stack] = stack
 
-    frame = %{frame | stack: [rem(x, y) | stack]}
+    frame = %{frame | stack: [EPython.PyOperable.mod(x, y) | stack]}
 
     %{state | topframe: frame}
   end
+
+  # TODO: Consolidate BINARY_* methods.
 
   # BINARY_ADD
   defp execute_instruction(23, _arg, state) do
@@ -202,7 +205,7 @@ defmodule EPython.Interpreter do
     [y | stack] = frame.stack
     [x | stack] = stack
 
-    frame = %{frame | stack: [x + y  | stack]}
+    frame = %{frame | stack: [EPython.PyOperable.add(x, y) | stack]}
 
     %{state | topframe: frame}
   end
@@ -213,7 +216,7 @@ defmodule EPython.Interpreter do
     [y | stack] = frame.stack
     [x | stack] = stack
 
-    frame = %{frame | stack: [x - y | stack]}
+    frame = %{frame | stack: [EPython.PyOperable.sub(x, y) | stack]}
 
     %{state | topframe: frame}
   end
@@ -224,7 +227,7 @@ defmodule EPython.Interpreter do
     [y | stack] = frame.stack
     [x | stack] = stack
 
-    frame = %{frame | stack: [:math.floor(x / y) | stack]}
+    frame = %{frame | stack: [EPython.PyOperable.floor_div(x, y) | stack]}
 
     %{state | topframe: frame}
   end
@@ -235,7 +238,7 @@ defmodule EPython.Interpreter do
     [y | stack] = frame.stack
     [x | stack] = stack
 
-    frame = %{frame | stack: [x / y | stack]}
+    frame = %{frame | stack: [EPython.PyOperable.true_div(x, y) | stack]}
 
     %{state | topframe: frame}
   end
