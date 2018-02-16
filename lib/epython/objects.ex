@@ -1,6 +1,6 @@
 defmodule EPython.PyFrame do
   @enforce_keys [:code]
-  defstruct [:code, {:pc, 0}, {:variables, %{}}, {:stack, []}, :previous_frame]
+  defstruct [:code, {:blocks, []}, {:pc, 0}, {:variables, %{}}, {:stack, []}, :previous_frame]
 end
 
 defmodule EPython.PyBuiltinFunction do
@@ -13,4 +13,10 @@ defmodule EPython.PyUserFunction do
   @enforce_keys [:name, :code]
 
   defstruct [:name, :code]
+end
+
+defmodule EPython.PyBlock do
+  @enforce_keys [:type, :level]
+
+  defstruct [:type, :level]
 end

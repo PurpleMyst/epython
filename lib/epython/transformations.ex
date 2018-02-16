@@ -74,4 +74,8 @@ defmodule EPython.Transformations do
     end
   end
 
+  def create_block(frame, delta, type) do
+    block = %EPython.PyBlock{type: type, level: frame.pc + delta}
+    %{frame | blocks: [block | frame.blocks]}
+  end
 end

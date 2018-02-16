@@ -219,6 +219,14 @@ defmodule EPython.Interpreter do
     %{state | topframe: frame}
   end
 
+  # INPLACE_ADD
+  defp execute_instruction(55, _arg, state) do
+    # TODO: Before adding more INPLACE instructions I'm going to figure out the
+    # difference between this and non-inplace instructions.
+    frame = apply_binary state.topframe, &EPython.PyOperable.add/2
+    %{state | topframe: frame}
+  end
+
   # RETURN_VALUE
   defp execute_instruction(83, _arg, state) do
     frame = state.topframe
@@ -240,6 +248,13 @@ defmodule EPython.Interpreter do
 
         %{state | topframe: parent}
     end
+  end
+
+  # POP_BLOCK
+  defp execute_instruction(87, _arg, state) do
+    frame = state.topframe
+    frame = %{frame | blocks: tl(frame.blocks)}
+    %{state | topframe: frame}
   end
 
   # STORE_NAME
@@ -325,6 +340,13 @@ defmodule EPython.Interpreter do
     %{state | topframe: frame}
   end
 
+  # JUMP_ABSOLUTE
+  defp execute_instruction(113, arg, state) do
+    frame = %{state.topframe | pc: arg}
+
+    %{state | topframe: frame}
+  end
+
   # POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE
   defp execute_instruction(opcode, arg, state) when opcode == 114 or opcode == 115 do
     {head, frame} = pop_from_stack state.topframe
@@ -356,6 +378,13 @@ defmodule EPython.Interpreter do
     value = load_variable module_frame, name
 
     frame = push_to_stack frame, value
+    %{state | topframe: frame}
+  end
+
+  # SETUP_LOOP
+  defp execute_instruction(120, arg, state) do
+    frame = state.topframe
+    frame = create_block frame, arg, :loop
     %{state | topframe: frame}
   end
 
