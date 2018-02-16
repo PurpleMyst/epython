@@ -3,16 +3,19 @@ defmodule EPython.InterpreterState do
 end
 
 defmodule EPython.Interpreter do
-  defp builtins do
+  import EPython.Transformations
+
+  def builtins do
     %{
       "print" =>
-        %EPython.PyBuiltinFunction{
-          name: "print",
-          function: fn args -> IO.puts Enum.join(args, " ") end
-        },
+         %EPython.PyBuiltinFunction{
+           name: "print",
+           function: fn args -> IO.puts Enum.join(args, " ") end
+         },
      }
   end
 
+  # opnames {{{1
   defp opname(1), do: "POP_TOP"
   defp opname(2), do: "ROT_TWO"
   defp opname(3), do: "ROT_THREE"
@@ -131,6 +134,7 @@ defmodule EPython.Interpreter do
   defp opname(156), do: "BUILD_CONST_KEY_MAP"
   defp opname(157), do: "BUILD_STRING"
   defp opname(158), do: "BUILD_TUPLE_UNPACK_WITH_CALL"
+  # }}}
 
   defp execute_instructions(state) do
     frame = state.topframe
@@ -155,108 +159,63 @@ defmodule EPython.Interpreter do
 
   # POP_TOP
   defp execute_instruction(1, _arg, state) do
-    frame = state.topframe
-    frame = %{frame | stack: tl(frame.stack)}
+    {_, frame} = pop_from_stack state.topframe
     %{state | topframe: frame}
   end
 
   # TODO: Do we need a protocol for these?
   # UNARY_POSITIVE
   defp execute_instruction(10, _arg, state) do
-    {value, frame} = pop_from_stack state.topframe
-    value = EPython.PyOperable.mul(value, 1)
-    frame = %{frame | stack: [value | frame.stack]}
+    frame = apply_unary state.topframe, &EPython.PyOperable.mul(&1, 1)
     %{state | topframe: frame}
   end
 
   # UNARY_NEGATIVE
   defp execute_instruction(11, _arg, state) do
-    {value, frame} = pop_from_stack state.topframe
-    value = EPython.PyOperable.mul(value, -1)
-    frame = %{frame | stack: [value | frame.stack]}
+    frame = apply_unary state.topframe, &EPython.PyOperable.mul(&1, -1)
     %{state | topframe: frame}
   end
 
-  # TODO: Replace the BINARY_* instructions with macros.
-
   # BINARY_POWER
   defp execute_instruction(19, _arg, state) do
-    frame = state.topframe
-    [y | stack] = frame.stack
-    [x | stack] = stack
-
-    # TODO: Add this to PyOperable.
-    frame = %{frame | stack: [:math.pow(x, y) | stack]}
-
+    frame = apply_binary state.topframe, &:math.pow/2
     %{state | topframe: frame}
   end
 
   # BINARY_MULTIPLY
   defp execute_instruction(20, _arg, state) do
-    frame = state.topframe
-    [y | stack] = frame.stack
-    [x | stack] = stack
-
-    frame = %{frame | stack: [EPython.PyOperable.mul(x, y) | stack]}
-
+    frame = apply_binary state.topframe, &*/2
     %{state | topframe: frame}
   end
 
   # BINARY_MODULO
   # TODO: Test the semantics of modulo with negative numbers.
   defp execute_instruction(22, _arg, state) do
-    frame = state.topframe
-    [y | stack] = frame.stack
-    [x | stack] = stack
-
-    frame = %{frame | stack: [EPython.PyOperable.mod(x, y) | stack]}
-
+    frame = apply_binary state.topframe, &EPython.PyOperable.mod/2
     %{state | topframe: frame}
   end
 
-  # TODO: Consolidate BINARY_* methods.
-
   # BINARY_ADD
   defp execute_instruction(23, _arg, state) do
-    frame = state.topframe
-    [y | stack] = frame.stack
-    [x | stack] = stack
-
-    frame = %{frame | stack: [EPython.PyOperable.add(x, y) | stack]}
-
+    frame = apply_binary state.topframe, &EPython.PyOperable.add/2
     %{state | topframe: frame}
   end
 
   # BINARY_SUBTRACT
   defp execute_instruction(24, _arg, state) do
-    frame = state.topframe
-    [y | stack] = frame.stack
-    [x | stack] = stack
-
-    frame = %{frame | stack: [EPython.PyOperable.sub(x, y) | stack]}
-
+    frame = apply_binary state.topframe, &EPython.PyOperable.sub/2
     %{state | topframe: frame}
   end
 
   # BINARY_FLOOR_DIVIDE
   defp execute_instruction(26, _arg, state) do
-    frame = state.topframe
-    [y | stack] = frame.stack
-    [x | stack] = stack
-
-    frame = %{frame | stack: [EPython.PyOperable.floor_div(x, y) | stack]}
-
+    frame = apply_binary state.topframe, &EPython.PyOperable.floor_div/2
     %{state | topframe: frame}
   end
 
   # BINARY_TRUE_DIVIDE
   defp execute_instruction(27, _arg, state) do
-    frame = state.topframe
-    [y | stack] = frame.stack
-    [x | stack] = stack
-
-    frame = %{frame | stack: [EPython.PyOperable.true_div(x, y) | stack]}
-
+    frame = apply_binary state.topframe, &EPython.PyOperable.true_div/2
     %{state | topframe: frame}
   end
 
@@ -277,7 +236,7 @@ defmodule EPython.Interpreter do
         end
 
       parent ->
-        parent = %{parent | stack: [hd(frame.stack) | parent.stack]}
+        parent = push_to_stack parent, hd(frame.stack)
 
         %{state | topframe: parent}
     end
@@ -288,9 +247,8 @@ defmodule EPython.Interpreter do
     {value, frame} = pop_from_stack state.topframe
 
     name = elem(frame.code[:names], arg)
-    variables = put_or_update frame.variables, name, value
+    frame = store_variable frame, name, value
 
-    frame = %{frame | variables: variables}
     %{state | topframe: frame}
   end
 
@@ -302,9 +260,10 @@ defmodule EPython.Interpreter do
       frame = state.topframe
       [head | stack] = frame.stack
 
-      # XXX: We really need to fix tuples.
+      # TODO: Use PyIterator/PyIterable here.
       head = if(is_tuple(head), do: Tuple.to_list(head), else: head)
 
+      # TODO: Check that there are no more values to unpack.
       {_, stack} = Enum.reduce((1..arg), {head, stack}, fn _, {[item | rest], stack} ->
         {rest, [item | stack]}
       end)
@@ -318,24 +277,16 @@ defmodule EPython.Interpreter do
   defp execute_instruction(100, arg, state) do
     frame = state.topframe
     const = elem(frame.code[:consts], arg)
-    frame = %{frame | stack: [const | frame.stack]}
-
+    frame = push_to_stack frame, const
     %{state | topframe: frame}
   end
 
   # LOAD_NAME
   defp execute_instruction(101, arg, state) do
-    # TODO: Look in the parents if we can't find it here.
     frame = state.topframe
 
     name = elem(frame.code[:names], arg)
-
-    b = builtins()
-    value = if Map.has_key?(b, name) do
-      b[name]
-    else
-      frame.variables[name]
-    end
+    value = load_variable frame, name, true
 
     frame = %{frame | stack: [value | frame.stack]}
     %{state | topframe: frame}
@@ -343,10 +294,8 @@ defmodule EPython.Interpreter do
 
   # COMPARE_OP
   defp execute_instruction(107, arg, state) do
-    frame = state.topframe
-
-    [y | stack] = frame.stack
-    [x | stack] = stack
+    # TODO: Make this use apply_binary
+    {[x, y], frame} = pop_from_stack state.topframe, 2
 
     result = case arg do
       0 -> x < y
@@ -363,8 +312,7 @@ defmodule EPython.Interpreter do
       #11 -> 'BAD'
     end
 
-    frame = %{frame | stack: [result | stack]}
-
+    frame = push_to_stack frame, result
     %{state | topframe: frame}
   end
 
@@ -379,8 +327,7 @@ defmodule EPython.Interpreter do
 
   # POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE
   defp execute_instruction(opcode, arg, state) when opcode == 114 or opcode == 115 do
-    frame = state.topframe
-    [head | stack] = frame.stack
+    {head, frame} = pop_from_stack state.topframe
 
     should_jump =
       if opcode == 114 do  # POP_JUMP_IF_FALSE
@@ -397,8 +344,6 @@ defmodule EPython.Interpreter do
       end
 
     frame = %{frame | pc: pc}
-    frame = %{frame | stack: stack}
-
     %{state | topframe: frame}
   end
 
@@ -408,20 +353,9 @@ defmodule EPython.Interpreter do
     module_frame = get_module_frame frame
 
     name = elem(frame.code[:names], arg)
+    value = load_variable module_frame, name
 
-    b = builtins()
-    value =
-      if Map.has_key?(module_frame.variables, name) do
-        module_frame.variables[name]
-      else
-        if Map.has_key?(b, name) do
-          b[name]
-        else
-          raise RuntimeError, message: "Unknown global #{inspect name}"
-        end
-      end
-
-    frame = %{frame | stack: [value | frame.stack]}
+    frame = push_to_stack frame, value
     %{state | topframe: frame}
   end
 
@@ -430,10 +364,9 @@ defmodule EPython.Interpreter do
     frame = state.topframe
 
     name = elem(frame.code[:varnames], arg)
+    value = load_variable frame, name
 
-    value = frame.variables[name]
-
-    frame = %{frame | stack: [value | frame.stack]}
+    frame = push_to_stack frame, value
     %{state | topframe: frame}
   end
 
@@ -442,30 +375,23 @@ defmodule EPython.Interpreter do
     {value, frame} = pop_from_stack state.topframe
 
     name = elem(frame.code[:varnames], arg)
-    variables = put_or_update frame.variables, name, value
+    frame = store_variable frame, name, value
 
-    frame = %{frame | variables: variables}
     %{state | topframe: frame}
   end
 
 
   # CALL_FUNCTION
   defp execute_instruction(131, arg, state) do
-    frame = state.topframe
+    {args, frame} = pop_from_stack state.topframe, arg
+    {func, frame} = pop_from_stack frame
 
-    {args, stack} =
-      if arg == 0 do
-        {[], frame.stack}
-      else
-        Enum.reduce((1..arg), {[], frame.stack},
-                    fn _, {args, [head | tail]} -> {[head | args], tail} end)
-      end
+    # DEBUG
+    #if match?(%EPython.PyUserFunction{}, func) do
+    #  IO.puts "Calling #{inspect func.code[:name]} with #{inspect args}"
+    #end
 
-    [func | stack] = stack
-
-    frame = %{frame | stack: stack}
     state = %{state | topframe: frame}
-
     EPython.PyCallable.call(func, args, state)
   end
 
@@ -475,15 +401,11 @@ defmodule EPython.Interpreter do
       raise ArgumentError, message: "Flags for MAKE_FUNCTION are not supported yet."
     end
 
-    frame = state.topframe
-    [fname | stack] = frame.stack
-    [fcode | stack] = stack
+    {[fcode, fname], frame} = pop_from_stack state.topframe, 2
 
     func = %EPython.PyUserFunction{name: fname, code: fcode}
 
-    stack = [func | stack]
-    frame = %{frame | stack: stack}
-
+    frame = push_to_stack frame, func
     %{state | topframe: frame}
   end
 
@@ -506,26 +428,6 @@ defmodule EPython.Interpreter do
   defp truthy?(:stopiteration), do: true
   defp truthy?(n) when is_atom(n), do: false
 
-  defp get_module_frame(frame) do
-    case frame.previous_frame do
-      nil    -> frame
-      parent -> get_module_frame parent
-    end
-  end
-
-  defp pop_from_stack(frame) do
-    [head | stack] = frame.stack
-    {head, %{frame | stack: stack}}
-  end
-
-  defp put_or_update(map, name, value) when is_map(map) do
-    if Map.has_key?(map, name) do
-      %{map | name => value}
-    else
-      Map.put(map, name, value)
-    end
-  end
-
   def interpret(bf) do
     code = bf.code_obj
     state = %EPython.InterpreterState{topframe: %EPython.PyFrame{code: code}}
@@ -533,3 +435,4 @@ defmodule EPython.Interpreter do
     execute_instructions state
   end
 end
+# vim: foldmethod=marker

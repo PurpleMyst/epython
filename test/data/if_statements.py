@@ -12,6 +12,7 @@ def foo(x):
     else:
         print("even")
 
+
 foo(7)
 foo(8)
 foo(13)
