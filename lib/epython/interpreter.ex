@@ -159,72 +159,64 @@ defmodule EPython.Interpreter do
 
   # POP_TOP
   defp execute_instruction(1, _arg, state) do
-    {_, frame} = pop_from_stack state.topframe
-    %{state | topframe: frame}
+    # TODO: Decrement refcount?
+    {_, state} = pop_from_stack state
+    state
   end
 
   # TODO: Do we need a protocol for these?
   # UNARY_POSITIVE
   defp execute_instruction(10, _arg, state) do
-    frame = apply_unary state.topframe, &EPython.PyOperable.mul(&1, 1)
-    %{state | topframe: frame}
+    apply_unary state, &EPython.PyOperable.mul(&1, 1)
   end
 
   # UNARY_NEGATIVE
   defp execute_instruction(11, _arg, state) do
-    frame = apply_unary state.topframe, &EPython.PyOperable.mul(&1, -1)
-    %{state | topframe: frame}
+    apply_unary state, &EPython.PyOperable.mul(&1, -1)
   end
 
   # BINARY_POWER
   defp execute_instruction(19, _arg, state) do
-    frame = apply_binary state.topframe, &:math.pow/2
-    %{state | topframe: frame}
+    apply_binary state, &:math.pow/2
   end
 
   # BINARY_MULTIPLY
   defp execute_instruction(20, _arg, state) do
-    frame = apply_binary state.topframe, &*/2
-    %{state | topframe: frame}
+    apply_binary state, &*/2
   end
 
   # BINARY_MODULO
   # TODO: Test the semantics of modulo with negative numbers.
   defp execute_instruction(22, _arg, state) do
-    frame = apply_binary state.topframe, &EPython.PyOperable.mod/2
-    %{state | topframe: frame}
+    apply_binary state, &EPython.PyOperable.mod/2
   end
 
   # BINARY_ADD
   defp execute_instruction(23, _arg, state) do
-    frame = apply_binary state.topframe, &EPython.PyOperable.add/2
-    %{state | topframe: frame}
+    apply_binary state, &EPython.PyOperable.add/2
   end
 
   # BINARY_SUBTRACT
   defp execute_instruction(24, _arg, state) do
-    frame = apply_binary state.topframe, &EPython.PyOperable.sub/2
-    %{state | topframe: frame}
+    apply_binary state, &EPython.PyOperable.sub/2
   end
 
   # BINARY_FLOOR_DIVIDE
   defp execute_instruction(26, _arg, state) do
-    frame = apply_binary state.topframe, &EPython.PyOperable.floor_div/2
+    frame = apply_binary state, &EPython.PyOperable.floor_div/2
     %{state | topframe: frame}
   end
 
   # BINARY_TRUE_DIVIDE
   defp execute_instruction(27, _arg, state) do
-    frame = apply_binary state.topframe, &EPython.PyOperable.true_div/2
-    %{state | topframe: frame}
+    apply_binary state, &EPython.PyOperable.true_div/2
   end
 
   # INPLACE_ADD
   defp execute_instruction(55, _arg, state) do
     # TODO: Before adding more INPLACE instructions I'm going to figure out the
     # difference between this and non-inplace instructions.
-    frame = apply_binary state.topframe, &EPython.PyOperable.add/2
-    %{state | topframe: frame}
+    apply_binary state, &EPython.PyOperable.add/2
   end
 
   # RETURN_VALUE
@@ -244,9 +236,8 @@ defmodule EPython.Interpreter do
         end
 
       parent ->
-        parent = push_to_stack parent, hd(frame.stack)
-
-        %{state | topframe: parent}
+        state = %{state | topframe: parent}
+        push_to_stack state, hd(frame.stack)
     end
   end
 
@@ -259,12 +250,9 @@ defmodule EPython.Interpreter do
 
   # STORE_NAME
   defp execute_instruction(90, arg, state) do
-    {value, frame} = pop_from_stack state.topframe
-
-    name = elem(frame.code[:names], arg)
-    frame = store_variable frame, name, value
-
-    %{state | topframe: frame}
+    {value, state} = pop_from_stack state
+    name = elem(state.topframe.code[:names], arg)
+    store_variable state, name, value
   end
 
   # UNPACK_SEQUENCE
@@ -272,18 +260,18 @@ defmodule EPython.Interpreter do
     if arg == 0 do
       state
     else
-      frame = state.topframe
-      [head | stack] = frame.stack
+      {head, state} = pop_from_stack state
 
       # TODO: Use PyIterator/PyIterable here.
       head = if(is_tuple(head), do: Tuple.to_list(head), else: head)
 
       # TODO: Check that there are no more values to unpack.
+      stack = state.topframe.stack
       {_, stack} = Enum.reduce((1..arg), {head, stack}, fn _, {[item | rest], stack} ->
         {rest, [item | stack]}
       end)
 
-      frame = %{frame | stack: stack}
+      frame = %{state.topframe | stack: stack}
       %{state | topframe: frame}
     end
   end
@@ -292,43 +280,35 @@ defmodule EPython.Interpreter do
   defp execute_instruction(100, arg, state) do
     frame = state.topframe
     const = elem(frame.code[:consts], arg)
-    frame = push_to_stack frame, const
-    %{state | topframe: frame}
+    # TODO: Increment refcount?
+    push_to_stack state, const
   end
 
   # LOAD_NAME
   defp execute_instruction(101, arg, state) do
-    frame = state.topframe
-
-    name = elem(frame.code[:names], arg)
-    value = load_variable frame, name, true
-
-    frame = %{frame | stack: [value | frame.stack]}
-    %{state | topframe: frame}
+    name = elem(state.topframe.code[:names], arg)
+    value = load_variable state, name, true
+    push_to_stack state, value
   end
 
   # COMPARE_OP
   defp execute_instruction(107, arg, state) do
-    # TODO: Make this use apply_binary
-    {[x, y], frame} = pop_from_stack state.topframe, 2
-
-    result = case arg do
-      0 -> x < y
-      1 -> x <= y
-      2 -> x == y
-      3 -> x != y
-      4 -> x > y
-      5 -> x >= y
-      6 -> if(is_tuple(y), do: x in Tuple.to_list(y), else: x in y)
-      7 -> x not in y
+    func = case arg do
+      0 -> &</2
+      1 -> &<=/2
+      2 -> &==/2
+      3 -> &!=/2
+      4 -> &>/2
+      5 -> &>=/2
+      6 -> &fake_in/2
+      7 -> &(not fake_in(&1, &2))
       #8 -> x is y
       #9 -> x is not y
       #10 -> 'exception match'
       #11 -> 'BAD'
     end
 
-    frame = push_to_stack frame, result
-    %{state | topframe: frame}
+    apply_binary state, func
   end
 
   # JUMP_FORWARD
@@ -349,7 +329,7 @@ defmodule EPython.Interpreter do
 
   # POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE
   defp execute_instruction(opcode, arg, state) when opcode == 114 or opcode == 115 do
-    {head, frame} = pop_from_stack state.topframe
+    {head, state} = pop_from_stack state
 
     should_jump =
       if opcode == 114 do  # POP_JUMP_IF_FALSE
@@ -362,10 +342,10 @@ defmodule EPython.Interpreter do
       if should_jump do
         arg
       else
-        frame.pc
+        state.topframe.pc
       end
 
-    frame = %{frame | pc: pc}
+    frame = %{state.topframe | pc: pc}
     %{state | topframe: frame}
   end
 
@@ -377,15 +357,12 @@ defmodule EPython.Interpreter do
     name = elem(frame.code[:names], arg)
     value = load_variable module_frame, name
 
-    frame = push_to_stack frame, value
-    %{state | topframe: frame}
+    push_to_stack state, value
   end
 
   # SETUP_LOOP
   defp execute_instruction(120, arg, state) do
-    frame = state.topframe
-    frame = create_block frame, arg, :loop
-    %{state | topframe: frame}
+    create_block state, arg, :loop
   end
 
   # LOAD_FAST
@@ -395,8 +372,7 @@ defmodule EPython.Interpreter do
     name = elem(frame.code[:varnames], arg)
     value = load_variable frame, name
 
-    frame = push_to_stack frame, value
-    %{state | topframe: frame}
+    push_to_stack state, value
   end
 
   # STORE_FAST
@@ -412,15 +388,9 @@ defmodule EPython.Interpreter do
 
   # CALL_FUNCTION
   defp execute_instruction(131, arg, state) do
-    {args, frame} = pop_from_stack state.topframe, arg
-    {func, frame} = pop_from_stack frame
+    {args, state} = pop_from_stack state, arg
+    {func, state} = pop_from_stack state
 
-    # DEBUG
-    #if match?(%EPython.PyUserFunction{}, func) do
-    #  IO.puts "Calling #{inspect func.code[:name]} with #{inspect args}"
-    #end
-
-    state = %{state | topframe: frame}
     EPython.PyCallable.call(func, args, state)
   end
 
@@ -430,12 +400,11 @@ defmodule EPython.Interpreter do
       raise ArgumentError, message: "Flags for MAKE_FUNCTION are not supported yet."
     end
 
-    {[fcode, fname], frame} = pop_from_stack state.topframe, 2
+    {[fcode, fname], state} = pop_from_stack state, 2
 
     func = %EPython.PyUserFunction{name: fname, code: fcode}
 
-    frame = push_to_stack frame, func
-    %{state | topframe: frame}
+    push_to_stack state, func
   end
 
   defp execute_instruction(opcode, arg, _state) do
@@ -456,6 +425,19 @@ defmodule EPython.Interpreter do
   defp truthy?(:ellipsis), do: true
   defp truthy?(:stopiteration), do: true
   defp truthy?(n) when is_atom(n), do: false
+
+  # TODO: Use PyIterable/PyIterator here.
+  defp fake_in(x, y) do
+    y =
+      if is_tuple(y) do
+        Tuple.to_list(y)
+      else
+        y
+      end
+
+    x in y
+  end
+
 
   def interpret(bf) do
     code = bf.code_obj
