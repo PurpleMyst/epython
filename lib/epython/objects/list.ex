@@ -19,7 +19,7 @@ defimpl EPython.PyOperable, for: EPython.PyList do
 
   def mul(_, 0), do: %EPython.PyList{contents: []}
   def mul(%EPython.PyList{contents: contents}, n) when is_integer(n) do
-    contents = Enum.map_concat((1..n), fn _ -> contents end)
+    contents = Enum.map_join((1..n), fn _ -> contents end)
     %EPython.PyList{contents: contents}
   end
 
