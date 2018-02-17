@@ -5,6 +5,7 @@ defprotocol EPython.PyOperable do
   def floor_div(x, y)
   def true_div(x, y)
   def mod(x, y)
+  def pow(x, y)
 end
 
 defimpl EPython.PyOperable, for: Integer do
@@ -21,6 +22,8 @@ defimpl EPython.PyOperable, for: Integer do
   def true_div(x, y), do: x / y
 
   def mod(x, y), do: rem(x, y)
+
+  def pow(x, y), do: :math.pow(x, y)
 end
 
 defimpl EPython.PyOperable, for: Float do
@@ -36,7 +39,9 @@ defimpl EPython.PyOperable, for: Float do
 
   def true_div(x, y), do: x / y
 
-  def mod(x, y), do: rem(x, y)
+  def mod(_x, _y), do: :notimplemented
+
+  def pow(x, y), do: :math.pow(x, y)
 end
 
 defimpl EPython.PyOperable, for: BitString do
@@ -53,4 +58,6 @@ defimpl EPython.PyOperable, for: BitString do
 
   # TODO: Add string interpolation.
   def mod(_x, _y), do: :notimplemented
+
+  def pow(_x, _y), do: :notimplemented
 end

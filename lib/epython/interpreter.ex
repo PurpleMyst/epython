@@ -1,5 +1,10 @@
 defmodule EPython.InterpreterState do
-  defstruct [:topframe]
+  defstruct [
+    :topframe,
+    {:objects, %{}},
+    {:refcounts, %{}},
+    {:next_id, 0},
+  ]
 end
 
 defmodule EPython.Interpreter do
@@ -10,7 +15,14 @@ defmodule EPython.Interpreter do
       "print" =>
          %EPython.PyBuiltinFunction{
            name: "print",
-           function: fn args -> IO.puts Enum.join(args, " ") end
+           function: fn args, state ->
+             # TODO: Currently I set `increment_refcount` to false to simulate
+             # a frame being created and destroyed here. Can we do this in a
+             # better way?
+             {args, state} = resolve_references state, args, false
+             IO.puts Enum.join(args, " ")
+             {:none, state}
+           end
          },
      }
   end
@@ -167,56 +179,55 @@ defmodule EPython.Interpreter do
   # TODO: Do we need a protocol for these?
   # UNARY_POSITIVE
   defp execute_instruction(10, _arg, state) do
-    apply_unary state, &EPython.PyOperable.mul(&1, 1)
+    apply_to_stack state, &EPython.PyOperable.mul(&1, 1)
   end
 
   # UNARY_NEGATIVE
   defp execute_instruction(11, _arg, state) do
-    apply_unary state, &EPython.PyOperable.mul(&1, -1)
+    apply_to_stack state, &EPython.PyOperable.mul(&1, -1)
   end
 
   # BINARY_POWER
   defp execute_instruction(19, _arg, state) do
-    apply_binary state, &:math.pow/2
+    apply_to_stack state, &EPython.PyOperable.pow/2
   end
 
   # BINARY_MULTIPLY
   defp execute_instruction(20, _arg, state) do
-    apply_binary state, &*/2
+    apply_to_stack state, &EPython.PyOperable.mul/2
   end
 
   # BINARY_MODULO
   # TODO: Test the semantics of modulo with negative numbers.
   defp execute_instruction(22, _arg, state) do
-    apply_binary state, &EPython.PyOperable.mod/2
+    apply_to_stack state, &EPython.PyOperable.mod/2
   end
 
   # BINARY_ADD
   defp execute_instruction(23, _arg, state) do
-    apply_binary state, &EPython.PyOperable.add/2
+    apply_to_stack state, &EPython.PyOperable.add/2
   end
 
   # BINARY_SUBTRACT
   defp execute_instruction(24, _arg, state) do
-    apply_binary state, &EPython.PyOperable.sub/2
+    apply_to_stack state, &EPython.PyOperable.sub/2
   end
 
   # BINARY_FLOOR_DIVIDE
   defp execute_instruction(26, _arg, state) do
-    frame = apply_binary state, &EPython.PyOperable.floor_div/2
+    frame = apply_to_stack state, &EPython.PyOperable.floor_div/2
     %{state | topframe: frame}
   end
 
   # BINARY_TRUE_DIVIDE
   defp execute_instruction(27, _arg, state) do
-    apply_binary state, &EPython.PyOperable.true_div/2
+    apply_to_stack state, &EPython.PyOperable.true_div/2
   end
 
   # INPLACE_ADD
   defp execute_instruction(55, _arg, state) do
-    # TODO: Before adding more INPLACE instructions I'm going to figure out the
-    # difference between this and non-inplace instructions.
-    apply_binary state, &EPython.PyOperable.add/2
+    # TODO: Make this actually in-place.
+    apply_to_stack state, &EPython.PyOperable.add/2
   end
 
   # RETURN_VALUE
@@ -237,6 +248,8 @@ defmodule EPython.Interpreter do
 
       parent ->
         state = %{state | topframe: parent}
+        state = Enum.reduce(Map.values(frame.variables), state, &decrement_refcount(&2, &1))
+
         push_to_stack state, hd(frame.stack)
     end
   end
@@ -291,6 +304,14 @@ defmodule EPython.Interpreter do
     push_to_stack state, value
   end
 
+  # BUILD_LIST
+  defp execute_instruction(103, arg, state) do
+    {contents, state} = pop_from_stack state, arg
+    list = %EPython.PyList{contents: contents}
+    {reference, state} = create_reference state, list
+    push_to_stack state, reference
+  end
+
   # COMPARE_OP
   defp execute_instruction(107, arg, state) do
     func = case arg do
@@ -308,7 +329,7 @@ defmodule EPython.Interpreter do
       #11 -> 'BAD'
     end
 
-    apply_binary state, func
+    apply_to_stack state, func
   end
 
   # JUMP_FORWARD
@@ -351,10 +372,9 @@ defmodule EPython.Interpreter do
 
   # LOAD_GLOBAL
   defp execute_instruction(116, arg, state) do
-    frame = state.topframe
-    module_frame = get_module_frame frame
+    module_frame = get_module_frame state
 
-    name = elem(frame.code[:names], arg)
+    name = elem(state.topframe.code[:names], arg)
     value = load_variable module_frame, name
 
     push_to_stack state, value
@@ -377,12 +397,10 @@ defmodule EPython.Interpreter do
 
   # STORE_FAST
   defp execute_instruction(125, arg, state) do
-    {value, frame} = pop_from_stack state.topframe
+    {value, state} = pop_from_stack state
 
-    name = elem(frame.code[:varnames], arg)
-    frame = store_variable frame, name, value
-
-    %{state | topframe: frame}
+    name = elem(state.topframe.code[:varnames], arg)
+    store_variable state, name, value
   end
 
 

@@ -26,15 +26,35 @@ defmodule EPython.Transformations do
     %{state | topframe: frame}
   end
 
-  def apply_unary(state, f) when is_function(f) do
-    {value, state} = pop_from_stack state
-    value = f.(value)
-    push_to_stack state, value
-  end
+  def is_pyobject(%EPython.PyList{}), do: true
+  def is_pyobject(_), do: false
 
-  def apply_binary(state, f) when is_function(f) do
-    {[x, y], state} = pop_from_stack state, 2
-    push_to_stack state, f.(x, y)
+  def apply_to_stack(state, f) do
+    # TODO: when we implement user-defined classes, do we need to handle those
+    # specially?
+
+    # TODO: Is there a better way to get a function's arity?
+    arity = cond do
+      is_function(f, 1) -> 1
+      is_function(f, 2) -> 2
+    end
+
+    {args, state} = pop_from_stack state, arity
+    {args, state} = resolve_references state, args
+    result = apply(f, args)
+
+    {result, state} =
+      if is_pyobject(result) do
+        create_reference state, result
+      else
+        {result, state}
+      end
+
+    if result == :notimplemented do
+      raise RuntimeError, "Could not apply #{inspect f} for #{inspect args}"
+    else
+      push_to_stack state, result
+    end
   end
 
   defp put_or_update(map, name, value) when is_map(map) do
@@ -83,7 +103,7 @@ defmodule EPython.Transformations do
   defp fetch_module_frame(frame) do
     case frame.previous_frame do
       nil    -> frame
-      parent -> get_module_frame parent
+      parent -> fetch_module_frame parent
     end
   end
 
@@ -96,5 +116,73 @@ defmodule EPython.Transformations do
     block = %EPython.PyBlock{type: type, level: frame.pc + delta}
     frame = %{frame | blocks: [block | frame.blocks]}
     %{state | topframe: frame}
+  end
+
+  def create_reference(state, object) do
+    id = state.next_id
+    objects = state.objects
+
+    objects = Map.put(objects, id, object)
+    reference = %EPython.PyReference{id: id}
+
+    state = %{state | objects: objects}
+    state = %{state | next_id: id + 1}
+
+    {reference, state}
+  end
+
+  # TODO: Can we make increment_refcount a named parameter?
+  def resolve_reference(state, ref, increment_refcount \\ true)
+
+  def resolve_reference(state, %EPython.PyReference{id: id}, increment_refcount) do
+    object = state.objects[id]
+
+    if object == nil do
+      raise RuntimeError, message: "Unknown id #{inspect id}"
+    else
+      refcounts =
+        if increment_refcount do
+          Map.update(state.refcounts, id, 1, &(&1 + 1))
+        else
+          state.refcounts
+        end
+
+      {object, %{state | refcounts: refcounts}}
+    end
+  end
+
+  def resolve_reference(state, object, _) do
+    {object, state}
+  end
+
+  def resolve_references(state, refs, increment_refcount \\ true)
+
+  def resolve_references(state, [reference | rest], increment_refcount) do
+    {object, state} = resolve_reference state, reference, increment_refcount
+    {objects, state} = resolve_references state, rest, increment_refcount
+    {[object | objects], state}
+  end
+
+  def resolve_references(state, [], _) do
+    {[], state}
+  end
+
+  def decrement_refcount(state, %EPython.PyReference{id: id}) do
+    refcounts = Map.update! state.refcounts, id, &(&1 - 1)
+
+    # TODO: Merge the two paths?
+    # TODO: Manage cyclical references.
+    if refcounts[id] == 0 do
+      refcounts = Map.delete(refcounts, id)
+      objects = Map.delete(state.objects, id)
+      state = %{state | objects: objects}
+      %{state | refcounts: refcounts}
+    else
+      %{state | refcounts: refcounts}
+    end
+  end
+
+  def decrement_refcount(state, _) do
+    state
   end
 end

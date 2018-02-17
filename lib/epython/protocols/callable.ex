@@ -5,13 +5,8 @@ end
 
 defimpl EPython.PyCallable, for: EPython.PyBuiltinFunction do
   def call(func, args, state) do
-      frame = state.topframe
-      result = func.function.(args)
-
-      stack = [result | frame.stack]
-      frame = %{frame | stack: stack}
-
-      %{state | topframe: frame}
+      {result, state} = func.function.(args, state)
+      EPython.Transformations.push_to_stack state, result
   end
 end
 
