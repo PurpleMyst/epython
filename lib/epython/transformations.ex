@@ -29,31 +29,40 @@ defmodule EPython.Transformations do
   def is_pyobject(%EPython.PyList{}), do: true
   def is_pyobject(_), do: false
 
-  def apply_to_stack(state, f) do
+  def apply_to_stack(state, f, target \\ nil) do
     # TODO: when we implement user-defined classes, do we need to handle those
     # specially?
 
     # TODO: Is there a better way to get a function's arity?
+    # TODO: If not, turn this into a loop.
     arity = cond do
       is_function(f, 1) -> 1
       is_function(f, 2) -> 2
+      is_function(f, 3) -> 3
     end
 
-    {args, state} = pop_from_stack state, arity
-    {args, state} = resolve_references state, args
+    {oargs = args, state} = pop_from_stack state, arity
+    {args, state} = resolve_references state, args, false  # TODO: true or false?
     result = apply(f, args)
 
-    {result, state} =
-      if is_pyobject(result) do
-        create_reference state, result
-      else
-        {result, state}
-      end
-
-    if result == :notimplemented do
-      raise RuntimeError, "Could not apply #{inspect f} for #{inspect args}"
+    if target != nil do
+      # TODO: Don't use pop_at, this was just a lazy hack
+      %EPython.PyReference{id: id} = elem(List.pop_at(oargs, target), 0)
+      objects = %{state.objects | id => result}
+      %{state | objects: objects}
     else
-      push_to_stack state, result
+      {result, state} =
+        if is_pyobject(result) do
+          create_reference state, result
+        else
+          {result, state}
+        end
+
+      if result == :notimplemented do
+        raise RuntimeError, "Could not apply #{inspect f} for #{inspect args}"
+      else
+        push_to_stack state, result
+      end
     end
   end
 

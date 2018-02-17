@@ -41,3 +41,10 @@ defimpl EPython.PySequence, for: EPython.PyList do
 
   def length(%EPython.PyList{contents: contents}), do: Kernel.length(contents)
 end
+
+defimpl EPython.PyMutableSequence, for: EPython.PyList do
+  def setitem(%EPython.PyList{contents: contents}, index, value) do
+    contents = List.replace_at(contents, index, value)
+    %EPython.PyList{contents: contents}
+  end
+end

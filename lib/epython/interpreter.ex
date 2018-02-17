@@ -247,6 +247,12 @@ defmodule EPython.Interpreter do
     apply_to_stack state, &EPython.PyOperable.add/2
   end
 
+  # STORE_SUBSCR
+  defp execute_instruction(60, _arg, state) do
+    # TODO: Define a reverse_arguments method?
+    apply_to_stack state, &EPython.PyMutableSequence.setitem(&2, &3, &1), 1
+  end
+
   # BREAK_LOOP
   defp execute_instruction(80, _arg, state) do
     # TODO: Make a set_pc transformation.
