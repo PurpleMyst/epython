@@ -24,6 +24,18 @@ defmodule EPython.Interpreter do
              {:none, state}
            end
          },
+
+      "len" =>
+         %EPython.PyBuiltinFunction{
+           name: "len",
+           function: fn [sequence], state ->
+             # TODO: Currently I set `increment_refcount` to false to simulate
+             # a frame being created and destroyed here. Can we do this in a
+             # better way?
+             {sequence, state} = resolve_reference state, sequence, false
+             {EPython.PySequence.length(sequence), state}
+           end
+         },
      }
   end
 
@@ -211,6 +223,11 @@ defmodule EPython.Interpreter do
   # BINARY_SUBTRACT
   defp execute_instruction(24, _arg, state) do
     apply_to_stack state, &EPython.PyOperable.sub/2
+  end
+
+  # BINARY_SUBSCR
+  defp execute_instruction(25, _arg, state) do
+    apply_to_stack state, &EPython.PySequence.getitem/2
   end
 
   # BINARY_FLOOR_DIVIDE
