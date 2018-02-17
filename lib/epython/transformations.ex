@@ -113,7 +113,8 @@ defmodule EPython.Transformations do
 
   def create_block(state, delta, type) do
     frame = state.topframe
-    block = %EPython.PyBlock{type: type, level: frame.pc + delta}
+    # TODO: Figure out how to set level.
+    block = %EPython.PyBlock{type: type, level: nil, handler: frame.pc + delta}
     frame = %{frame | blocks: [block | frame.blocks]}
     %{state | topframe: frame}
   end

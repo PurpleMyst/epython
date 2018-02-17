@@ -230,6 +230,16 @@ defmodule EPython.Interpreter do
     apply_to_stack state, &EPython.PyOperable.add/2
   end
 
+  # BREAK_LOOP
+  defp execute_instruction(80, _arg, state) do
+    # TODO: Make a set_pc transformation.
+    frame = state.topframe
+    [block | blocks] = frame.blocks
+    frame = %{frame | blocks: blocks}
+    frame = %{frame | pc: block.handler}
+    %{state | topframe: frame}
+  end
+
   # RETURN_VALUE
   defp execute_instruction(83, _arg, state) do
     frame = state.topframe
@@ -335,8 +345,10 @@ defmodule EPython.Interpreter do
   # JUMP_FORWARD
   defp execute_instruction(110, arg, state) do
     frame = state.topframe
-    # remember, we have to account for always adding 2
-    frame = %{frame | pc: frame.pc + (2 * arg - 2)}
+    # apparently there's no need to subtract 2 cause the cpython interpreter
+    # also always adds 2 to the pc so JUMP_FORWARD takes that into account and
+    # it's really dumb.
+    frame = %{frame | pc: frame.pc + arg}
 
     %{state | topframe: frame}
   end

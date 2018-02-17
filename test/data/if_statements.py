@@ -16,3 +16,4 @@ def foo(x):
 foo(7)
 foo(8)
 foo(13)
+foo(10)
