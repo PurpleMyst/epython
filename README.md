@@ -18,4 +18,8 @@ $ MIX_ENV=prod mix escript.build
 ```
 
 This will generate an `epython` executable in the main project directory which
-you can pass python files to as a command-line argument.
+you can pass python files to (**actual python files**, not just bytecode files) as a command-line argument.
+
+## Running tests
+
+You can run a variety of tests for the interpreter itself by running `./run_tests.py`.
