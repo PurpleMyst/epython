@@ -15,7 +15,7 @@ defmodule EPython.PyList do
   end
 
   def append(%EPython.PyList{contents: contents}, value) do
-    contents = Map.put(contents, map_size(contents),  value}
+    contents = Map.put(contents, map_size(contents),  value)
     %EPython.PyList{contents: contents}
   end
 
@@ -36,7 +36,7 @@ defimpl EPython.PyOperable, for: EPython.PyList do
   def add(%EPython.PyList{contents: c1}, %EPython.PyList{contents: c2}) do
     # TODO: We have much of the same code as PyList.append here, we should make
     # a transformation.
-    c2 = Enum.into(Enum.map(c2, fn {i, x} -> {i + map_size(c1), x} end))
+    c2 = Enum.into(Stream.map(c2, fn {i, x} -> {i + map_size(c1), x} end), %{})
     contents = Map.merge(c1, c2)
 
     %EPython.PyList{contents: contents}

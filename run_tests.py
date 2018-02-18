@@ -1,5 +1,7 @@
-import subprocess
+#!/usr/bin/env python3.6
+import glob
 import os
+import subprocess
 
 
 def print_success(text):
@@ -11,9 +13,7 @@ def print_error(text):
 
 
 def get_test_files():
-    for filename in os.listdir('test/data'):
-        if filename.endswith('.py'):
-            yield 'test/data/' + filename
+    return glob.glob("test/data/*.py")
 
 
 def run(interpreter, filename):

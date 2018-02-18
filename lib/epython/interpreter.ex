@@ -236,8 +236,7 @@ defmodule EPython.Interpreter do
 
   # BINARY_FLOOR_DIVIDE
   defp execute_instruction(26, _arg, state) do
-    frame = apply_to_stack state, &EPython.PyOperable.floor_div/2
-    %{state | topframe: frame}
+    apply_to_stack state, &EPython.PyOperable.floor_div/2
   end
 
   # BINARY_TRUE_DIVIDE
@@ -313,14 +312,15 @@ defmodule EPython.Interpreter do
     if arg == 0 do
       state
     else
-      {head, state} = pop_from_stack state
+      {sequence, state} = pop_from_stack state
 
       # TODO: Use PyIterator/PyIterable here.
-      head = if(is_tuple(head), do: Tuple.to_list(head), else: head)
+      sequence = if(is_tuple(sequence), do: Tuple.to_list(sequence), else: sequence)
+      sequence = Enum.reverse(Enum.to_list(sequence))
 
       # TODO: Check that there are no more values to unpack.
       stack = state.topframe.stack
-      {_, stack} = Enum.reduce((1..arg), {head, stack}, fn _, {[item | rest], stack} ->
+      {_, stack} = Enum.reduce((1..arg), {sequence, stack}, fn _, {[item | rest], stack} ->
         {rest, [item | stack]}
       end)
 
