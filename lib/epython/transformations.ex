@@ -26,12 +26,12 @@ defmodule EPython.Transformations do
     %{state | topframe: frame}
   end
 
+  def peek_stack(state, offset) do
+    Enum.at(state.topframe.stack, offset)
+  end
+
   def is_pyobject(%EPython.PyList{}), do: true
   def is_pyobject(_), do: false
-
-  defp index_list([head | _], 0), do: head
-  defp index_list([_ | tail], n), do: index_list tail, n - 1
-  defp index_list([], _), do: raise ArgumentError, message: "Tried to index empty list."
 
   def apply_to_stack(state, f, target \\ nil) do
     # TODO: when we implement user-defined classes, do we need to handle those
@@ -54,7 +54,7 @@ defmodule EPython.Transformations do
         # I don't think that it matters here that this has linear time.
         # We only ever look for at most the second-to-top item.
 
-        case index_list raw_args, offset do
+        case Enum.at raw_args, offset do
           %EPython.PyReference{id: id} ->
             objects = %{state.objects | id => result}
             %{state | objects: objects}
@@ -220,5 +220,15 @@ defmodule EPython.Transformations do
 
   def decrement_refcount(state, _) do
     state
+  end
+
+  def jump_forward(state, delta) do
+    frame = state.topframe
+    # apparently there's no need to subtract 2 cause the cpython interpreter
+    # also always adds 2 to the pc so JUMP_FORWARD takes that into account and
+    # it's really dumb.
+    frame = %{frame | pc: frame.pc + delta}
+
+    %{state | topframe: frame}
   end
 end

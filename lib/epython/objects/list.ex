@@ -3,6 +3,10 @@ defmodule EPython.PyList do
   @enforce_keys [:contents]
 
   defstruct [:contents]
+
+  def append(%EPython.PyList{contents: contents}, value) do
+    %EPython.PyList{contents: contents ++ [value]}
+  end
 end
 
 defimpl String.Chars, for: EPython.PyList do
@@ -47,4 +51,21 @@ defimpl EPython.PyMutableSequence, for: EPython.PyList do
     contents = List.replace_at(contents, index, value)
     %EPython.PyList{contents: contents}
   end
+end
+
+defmodule EPython.PyListIterator do
+  defstruct [{:contents, []}]
+end
+
+defimpl EPython.PyIterable, for: EPython.PyList do
+  def iter(%EPython.PyList{contents: contents}), do: %EPython.PyListIterator{contents: contents}
+end
+
+defimpl EPython.PyIterable, for: EPython.PyListIterator do
+  def iter(iterator), do: iterator
+end
+
+defimpl EPython.PyIterator, for: EPython.PyListIterator do
+  def next(%EPython.PyListIterator{contents: [head | tail]}), do: {head, %EPython.PyListIterator{contents: tail}}
+  def next(%EPython.PyListIterator{contents: []}), do: throw :stopiteration
 end

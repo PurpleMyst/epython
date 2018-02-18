@@ -248,6 +248,11 @@ defmodule EPython.Interpreter do
     apply_to_stack state, &EPython.PyMutableSequence.setitem(&2, &3, &1), {:tos, 1}
   end
 
+  # GET_ITER
+  defp execute_instruction(68, _arg, state) do
+    apply_to_stack state, &EPython.PyIterable.iter/1
+  end
+
   # BREAK_LOOP
   defp execute_instruction(80, _arg, state) do
     # TODO: Make a set_pc transformation.
@@ -317,6 +322,22 @@ defmodule EPython.Interpreter do
     end
   end
 
+  # FOR_ITER
+  defp execute_instruction(93, arg, state) do
+    {iterator, state} = pop_from_stack state
+
+    # TODO: Do we need to use throw here?
+    try do
+      EPython.PyIterator.next iterator
+    catch
+      :stopiteration -> jump_forward state, arg
+    else
+      {value, iterator} ->
+        state = push_to_stack state, iterator
+        push_to_stack state, value
+    end
+  end
+
   # LOAD_CONST
   defp execute_instruction(100, arg, state) do
     frame = state.topframe
@@ -362,13 +383,7 @@ defmodule EPython.Interpreter do
 
   # JUMP_FORWARD
   defp execute_instruction(110, arg, state) do
-    frame = state.topframe
-    # apparently there's no need to subtract 2 cause the cpython interpreter
-    # also always adds 2 to the pc so JUMP_FORWARD takes that into account and
-    # it's really dumb.
-    frame = %{frame | pc: frame.pc + arg}
-
-    %{state | topframe: frame}
+    jump_forward state, arg
   end
 
   # JUMP_ABSOLUTE
@@ -433,7 +448,6 @@ defmodule EPython.Interpreter do
     store_variable state, name, value
   end
 
-
   # CALL_FUNCTION
   defp execute_instruction(131, arg, state) do
     {args, state} = pop_from_stack state, arg
@@ -453,6 +467,17 @@ defmodule EPython.Interpreter do
     func = %EPython.PyUserFunction{name: fname, code: fcode}
 
     push_to_stack state, func
+  end
+
+  # LIST_APPEND
+  defp execute_instruction(145, arg, state) do
+    # TODO: Optimize list comprehensions.
+    %EPython.PyReference{id: id} = list = peek_stack state, arg
+    {list, state} = resolve_reference state, list, false
+    {value, state} = pop_from_stack state
+    list = EPython.PyList.append list, value
+    objects = %{state.objects | id => list}
+    %{state | objects: objects}
   end
 
   defp execute_instruction(opcode, arg, _state) do
