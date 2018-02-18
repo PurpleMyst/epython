@@ -1,37 +1,44 @@
+# XXX: We could use Stream instead of Enum in a few places here.
+
 defmodule EPython.PyList do
   @enforce_keys [:contents]
 
   defstruct [:contents]
 
   def new(contents) do
-    arr = :array.from_list(contents)
-    %EPython.PyList{contents: arr}
+    contents =
+      Enum.reduce(Enum.with_index(contents), %{}, fn {x, i}, m ->
+        Map.put(m, i, x)
+      end)
+
+    %EPython.PyList{contents: contents}
   end
 
   def append(%EPython.PyList{contents: contents}, value) do
-    contents = :array.set(:array.size(contents), value, contents)
+    contents = %{contents | map_size(contents) => value}
     %EPython.PyList{contents: contents}
+  end
+
+  def to_list(%EPython.PyList{contents: contents}) do
+    # XXX: This is one of the places where we could use a Stream.
+    Enum.map((0..map_size(contents) - 1), &Map.fetch!(contents, &1))
   end
 end
 
 defimpl String.Chars, for: EPython.PyList do
-  def to_string(%EPython.PyList{contents: contents}) do
+  def to_string(pylist) do
     # XXX: It might be more efficent to print out each element ourselves.
-    inspect :array.to_list(contents)
+    inspect EPython.PyList.to_list(pylist)
   end
 end
 
 defimpl EPython.PyOperable, for: EPython.PyList do
-  defp add_arrays(c1, c2) do
-    Enum.reduce(c2, c1, fn item, contents ->
-      :array.set(:array.size(contents), item)
-    end)
-  end
-
   def add(%EPython.PyList{contents: c1}, %EPython.PyList{contents: c2}) do
     # TODO: We have much of the same code as PyList.append here, we should make
     # a transformation.
-    contents = add_arrays c1, c2
+    c2 = Enum.into(Enum.map(c2, fn {i, x} -> {i + map_size(c1), x} end))
+    contents = Map.merge(c1, c2)
+
     %EPython.PyList{contents: contents}
   end
 
@@ -42,7 +49,13 @@ defimpl EPython.PyOperable, for: EPython.PyList do
   end
 
   def mul(%EPython.PyList{contents: contents}, n) when is_integer(n) do
-    contents = Enum.map((1..n), fn _ -> contents end) |> Enum.reduce(&add_arrays/2)
+    contents =
+      (0..n - 1)
+      |> Stream.map(fn k ->
+        Stream.map(contents, fn {i, x} -> {k * map_size(contents) + i, x} end)
+        |> Enum.into(%{})
+      end)
+      |> Enum.reduce(&Map.merge/2)
     %EPython.PyList{contents: contents}
   end
 
@@ -57,17 +70,24 @@ end
 
 defimpl EPython.PySequence, for: EPython.PyList do
   def getitem(%EPython.PyList{contents: contents}, index) do
-    :array.get(index, contents)
+    # TODO: Implement slices.
+    item = contents[index]
+
+    if item == nil do
+      raise RuntimeError, message: "Index #{index} out of bounds for #{inspect contents}"
+    else
+      item
+    end
   end
 
   def length(%EPython.PyList{contents: contents}) do
-    :array.size(contents)
+    map_size(contents)
   end
 end
 
 defimpl EPython.PyMutableSequence, for: EPython.PyList do
   def setitem(%EPython.PyList{contents: contents}, index, value) do
-    contents = :array.set(index, value, contents)
+    contents = %{contents | index => value}
     %EPython.PyList{contents: contents}
   end
 end
@@ -78,9 +98,8 @@ defmodule EPython.PyListIterator do
 end
 
 defimpl EPython.PyIterable, for: EPython.PyList do
-  # XXX: Do we need to turn the array into a list?
-  def iter(%EPython.PyList{contents: contents}) do
-    %EPython.PyListIterator{contents: :array.to_list(contents)}
+  def iter(pylist) do
+    %EPython.PyListIterator{contents: EPython.PyList.to_list(pylist)}
   end
 end
 
