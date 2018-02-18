@@ -1,14 +1,21 @@
 # EPython
 
-EPython will be a toy CPython bytecode interpreter written in Elixir.
+EPython is be a toy CPython bytecode interpreter written in Elixir.
 
 ## Compiliation
 
-At the shell, run:
+To utilize EPython, you will need the Erlang VM and `mix`. This README assumes
+you're utilizing an unix-like operating system, such as Linux or OSX, due to
+this being not tested on Windows at all.
+
+You can install everything by following the instructions on [the official
+Elixir website](https://elixir-lang.org/install.html).
+
+Then, to compile, you can type this into your shell:
 
 ```bash
-mix escript.build
+$ MIX_ENV=prod mix escript.build
 ```
 
-Which will generate a `./epython` executable that you can run with a bytecode
-file.
+This will generate an `epython` executable in the main project directory which
+you can pass python files to as a command-line argument.
