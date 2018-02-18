@@ -5,9 +5,14 @@ defmodule EPython.PyBuiltinFunction do
 end
 
 defmodule EPython.PyUserFunction do
-  @enforce_keys [:name, :code]
+  @enforce_keys [:name, :code, :default_posargs, :default_kwargs]
 
-  defstruct [:name, :code]
+  defstruct [
+    :name,  # The name of the function
+    :code,  # The code object of the function
+    :default_posargs,  # The default positional arguments of the function
+    :default_kwargs, # The default keyword-only arguments of the function
+  ]
 end
 
 defimpl EPython.PyCallable, for: EPython.PyBuiltinFunction do

@@ -39,7 +39,14 @@ def compare_interpreters(filename):
 
 
 def main():
-    subprocess.call(['mix', 'escript.build'])
+    mix_process = subprocess.run(['mix', 'escript.build'])
+
+    if mix_process.returncode != 0:
+        print_error("EPython failed to compile")
+
+        import sys
+        sys.exit(1)
+
     with Pool(cpu_count()) as dont_pee_in_it:
         dont_pee_in_it.map(compare_interpreters, get_test_files())
 

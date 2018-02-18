@@ -460,18 +460,59 @@ defmodule EPython.Interpreter do
     {args, state} = pop_from_stack state, arg
     {func, state} = pop_from_stack state
 
+    args =
+      case func do
+        %EPython.PyUserFunction{} ->
+          argcount = length(args)
+          expected_argcount = func.code[:argcount]
+
+          # We need to skip over any of the arguments having defaults that have
+          # been specified.
+          required_arguments = expected_argcount - length(func.default_posargs)
+          default_specified = argcount - required_arguments
+          default_posargs = Enum.drop(func.default_posargs, default_specified)
+
+          args = args ++ default_posargs
+
+          if length(args) != expected_argcount do
+            raise ArgumentError, message: "Too many arguments for #{inspect func.name} (#{inspect args})"
+          else
+            args
+          end
+
+        _ -> args
+      end
+
     EPython.PyCallable.call(func, args, state)
   end
 
   # MAKE_FUNCTION
   defp execute_instruction(132, arg, state) do
-    if arg != 0 do
-      raise ArgumentError, message: "Flags for MAKE_FUNCTION are not supported yet."
-    end
+    use Bitwise
 
     {[fcode, fname], state} = pop_from_stack state, 2
 
-    func = %EPython.PyUserFunction{name: fname, code: fcode}
+    {default_kwargs, state} =
+      if (arg &&& 2) != 0 do
+        pop_from_stack state
+      else
+        {{}, state}
+      end
+
+    {default_posargs, state} =
+      if (arg &&& 1) != 0 do
+        pop_from_stack state
+      else
+        {{}, state}
+      end
+
+    func =
+      %EPython.PyUserFunction{
+        name: fname,
+        code: fcode,
+        default_posargs: Tuple.to_list(default_posargs),
+        default_kwargs: Tuple.to_list(default_kwargs),
+      }
 
     push_to_stack state, func
   end
