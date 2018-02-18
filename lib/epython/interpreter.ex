@@ -363,7 +363,7 @@ defmodule EPython.Interpreter do
   # BUILD_LIST
   defp execute_instruction(103, arg, state) do
     {contents, state} = pop_from_stack state, arg
-    list = %EPython.PyList{contents: contents}
+    list = EPython.PyList.new(contents)
     {reference, state} = create_reference state, list
     push_to_stack state, reference
   end
