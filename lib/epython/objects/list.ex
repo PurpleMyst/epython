@@ -15,7 +15,7 @@ defmodule EPython.PyList do
   end
 
   def append(%EPython.PyList{contents: contents}, value) do
-    contents = %{contents | map_size(contents) => value}
+    contents = Map.put(contents, map_size(contents),  value}
     %EPython.PyList{contents: contents}
   end
 
