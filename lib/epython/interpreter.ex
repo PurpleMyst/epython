@@ -181,8 +181,15 @@ defmodule EPython.Interpreter do
   # POP_TOP
   defp execute_instruction(1, _arg, state) do
     # TODO: Decrement refcount?
-    {_, state} = pop_from_stack state
-    state
+    {value, state} = pop_from_stack state
+    decrement_refcount state, value
+  end
+
+  # ROT_TWO
+  defp execute_instruction(2, _arg, state) do
+    {[x, y], state} = pop_from_stack state, 2
+    state = push_to_stack state, y
+    push_to_stack state, x
   end
 
   # TODO: Do we need a protocol for these?
