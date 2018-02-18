@@ -1,5 +1,6 @@
 #!/usr/bin/env python3.6
 import glob
+from multiprocessing import cpu_count
 from multiprocessing.dummy import Pool
 import os
 import subprocess
@@ -39,7 +40,7 @@ def compare_interpreters(filename):
 
 def main():
     subprocess.call(['mix', 'escript.build'])
-    with Pool(5) as dont_pee_in_it:
+    with Pool(cpu_count()) as dont_pee_in_it:
         dont_pee_in_it.map(compare_interpreters, get_test_files())
 
 
