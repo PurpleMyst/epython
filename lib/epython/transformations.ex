@@ -29,6 +29,10 @@ defmodule EPython.Transformations do
   def is_pyobject(%EPython.PyList{}), do: true
   def is_pyobject(_), do: false
 
+  defp index_list([head | _], 0), do: head
+  defp index_list([_ | tail], n), do: index_list tail, n - 1
+  defp index_list([], _), do: raise ArgumentError, message: "Tried to index empty list."
+
   def apply_to_stack(state, f, target \\ nil) do
     # TODO: when we implement user-defined classes, do we need to handle those
     # specially?
@@ -41,28 +45,41 @@ defmodule EPython.Transformations do
       is_function(f, 3) -> 3
     end
 
-    {oargs = args, state} = pop_from_stack state, arity
+    {raw_args = args, state} = pop_from_stack state, arity
     {args, state} = resolve_references state, args, false  # TODO: true or false?
     result = apply(f, args)
 
-    if target != nil do
-      # TODO: Don't use pop_at, this was just a lazy hack
-      %EPython.PyReference{id: id} = elem(List.pop_at(oargs, target), 0)
-      objects = %{state.objects | id => result}
-      %{state | objects: objects}
-    else
-      {result, state} =
-        if is_pyobject(result) do
-          create_reference state, result
-        else
-          {result, state}
+    case target do
+      {:tos, offset} ->
+        # I don't think that it matters here that this has linear time.
+        # We only ever look for at most the second-to-top item.
+
+        case index_list raw_args, offset do
+          %EPython.PyReference{id: id} ->
+            objects = %{state.objects | id => result}
+            %{state | objects: objects}
+
+          _ ->
+            if is_pyobject(result) do
+              raise ArgumentError, message: "This shouldn't happen."
+            else
+              push_to_stack state, result
+            end
         end
 
-      if result == :notimplemented do
-        raise RuntimeError, "Could not apply #{inspect f} for #{inspect args}"
-      else
-        push_to_stack state, result
-      end
+      nil ->
+        {result, state} =
+          if is_pyobject(result) do
+            create_reference state, result
+          else
+            {result, state}
+          end
+
+        if result == :notimplemented do
+          raise RuntimeError, "Could not apply #{inspect f} for #{inspect args}"
+        else
+          push_to_stack state, result
+        end
     end
   end
 
@@ -75,11 +92,12 @@ defmodule EPython.Transformations do
   end
 
   def store_variable(state, name, value) do
-    # TODO: Increment reference count.
     frame = state.topframe
     variables = put_or_update frame.variables, name, value
+
     frame = %{frame | variables: variables}
-    %{state | topframe: frame}
+    state = %{state | topframe: frame}
+    increment_refcount state, value
   end
 
   defp fetch_variable(frame, name, check_parents) do
@@ -141,23 +159,22 @@ defmodule EPython.Transformations do
     {reference, state}
   end
 
-  # TODO: Can we make increment_refcount a named parameter?
-  def resolve_reference(state, ref, increment_refcount \\ true)
+  def resolve_reference(state, ref, should_increment_refcount \\ true)
 
-  def resolve_reference(state, %EPython.PyReference{id: id}, increment_refcount) do
+  def resolve_reference(state, ref = %EPython.PyReference{id: id}, should_increment_refcount) do
     object = state.objects[id]
 
     if object == nil do
       raise RuntimeError, message: "Unknown id #{inspect id}"
     else
-      refcounts =
-        if increment_refcount do
-          Map.update(state.refcounts, id, 1, &(&1 + 1))
+      state =
+        if should_increment_refcount do
+          increment_refcount state, ref
         else
-          state.refcounts
+          state
         end
 
-      {object, %{state | refcounts: refcounts}}
+      {object, state}
     end
   end
 
@@ -175,6 +192,15 @@ defmodule EPython.Transformations do
 
   def resolve_references(state, [], _) do
     {[], state}
+  end
+
+  def increment_refcount(state, %EPython.PyReference{id: id}) do
+    refcounts = Map.update state.refcounts, id, 1, &(&1 - 1)
+    %{state | refcounts: refcounts}
+  end
+
+  def increment_refcount(state, _) do
+    state
   end
 
   def decrement_refcount(state, %EPython.PyReference{id: id}) do

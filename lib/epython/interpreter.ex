@@ -12,13 +12,13 @@ defmodule EPython.Interpreter do
 
   def builtins do
     %{
+      # TODO: Currently I set `should_increment_refcount` to false to simulate
+      # a frame being created and destroyed. Can we do this in a better way?
+
       "print" =>
          %EPython.PyBuiltinFunction{
            name: "print",
            function: fn args, state ->
-             # TODO: Currently I set `increment_refcount` to false to simulate
-             # a frame being created and destroyed here. Can we do this in a
-             # better way?
              {args, state} = resolve_references state, args, false
              IO.puts Enum.join(args, " ")
              {:none, state}
@@ -29,9 +29,6 @@ defmodule EPython.Interpreter do
          %EPython.PyBuiltinFunction{
            name: "len",
            function: fn [sequence], state ->
-             # TODO: Currently I set `increment_refcount` to false to simulate
-             # a frame being created and destroyed here. Can we do this in a
-             # better way?
              {sequence, state} = resolve_reference state, sequence, false
              {EPython.PySequence.length(sequence), state}
            end
@@ -243,14 +240,12 @@ defmodule EPython.Interpreter do
 
   # INPLACE_ADD
   defp execute_instruction(55, _arg, state) do
-    # TODO: Make this actually in-place.
-    apply_to_stack state, &EPython.PyOperable.add/2
+    apply_to_stack state, &EPython.PyOperable.add/2, {:tos, 0}
   end
 
   # STORE_SUBSCR
   defp execute_instruction(60, _arg, state) do
-    # TODO: Define a reverse_arguments method?
-    apply_to_stack state, &EPython.PyMutableSequence.setitem(&2, &3, &1), 1
+    apply_to_stack state, &EPython.PyMutableSequence.setitem(&2, &3, &1), {:tos, 1}
   end
 
   # BREAK_LOOP

@@ -19,6 +19,7 @@ end
 
 defimpl EPython.PyCallable, for: EPython.PyUserFunction do
   def call(func, args, state) do
+      state = Enum.reduce(args, state, &EPython.Transformations.increment_refcount(&2, &1))
       frame = state.topframe
       pairs = Enum.zip(Tuple.to_list(func.code[:varnames]), args)
 
