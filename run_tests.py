@@ -1,5 +1,7 @@
 #!/usr/bin/env python3.6
 import glob
+from multiprocessing import cpu_count
+from multiprocessing.dummy import Pool
 import os
 import subprocess
 
@@ -27,15 +29,19 @@ def run(interpreter, filename):
         return e.args[0]
 
 
+def compare_interpreters(filename):
+    epython = run('./epython', filename)
+    cpython = run('python3.6', filename)
+    if epython == cpython:
+        print_success(filename)
+    else:
+        print_error(filename)
+
+
 def main():
     subprocess.call(['mix', 'escript.build'])
-    for filename in get_test_files():
-        epython = run('./epython', filename)
-        cpython = run('python3.6', filename)
-        if epython == cpython:
-            print_success(filename)
-        else:
-            print_error(filename)
+    with Pool(cpu_count()) as dont_pee_in_it:
+        dont_pee_in_it.map(compare_interpreters, get_test_files())
 
 
 if __name__ == '__main__':
