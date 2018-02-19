@@ -4,6 +4,12 @@ defmodule EPython.PyBuiltinFunction do
   defstruct [{:name, "<unknown_builtin>"}, :function]
 end
 
+defmodule EPython.PyMethod do
+  @enforce_keys [:object, :function]
+
+  defstruct [{:name, "<unknown_method>"}, :object, :function]
+end
+
 defmodule EPython.PyUserFunction do
   @enforce_keys [:name, :code, :default_posargs, :default_kwargs]
 
@@ -18,6 +24,18 @@ end
 defimpl EPython.PyCallable, for: EPython.PyBuiltinFunction do
   def call(func, args, state) do
       {result, state} = func.function.(args, state)
+      EPython.Transformations.push_to_stack state, result
+  end
+end
+
+defimpl EPython.PyCallable, for: EPython.PyMethod do
+  def call(func, args, state) do
+      # TODO: Have the method handle setting the new object?
+      %EPython.PyReference{id: id} = func.object
+      args = [func.object] ++ args
+      {result, new_object, state} = func.function.(args, state)
+      objects = %{state.objects | id => new_object}
+      state = %{state | objects: objects}
       EPython.Transformations.push_to_stack state, result
   end
 end

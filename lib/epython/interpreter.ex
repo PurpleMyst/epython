@@ -166,8 +166,7 @@ defmodule EPython.Interpreter do
 
       # We increment the program counter here by 2 every time.
       # This is so that we don't need to increase it in *every* instruction
-      # function. The caveat is that in JUMP_RELATIVE we need to subtract 2
-      # from the delta, but that's literally the only caveat.
+      # function.
       frame = %{frame | pc: frame.pc + 2}
       state = %{state | topframe: frame}
 
@@ -180,7 +179,6 @@ defmodule EPython.Interpreter do
 
   # POP_TOP
   defp execute_instruction(1, _arg, state) do
-    # TODO: Decrement refcount?
     {value, state} = pop_from_stack state
     decrement_refcount state, value
   end
@@ -366,6 +364,15 @@ defmodule EPython.Interpreter do
     list = EPython.PyList.new(contents)
     {reference, state} = create_reference state, list
     push_to_stack state, reference
+  end
+
+  # LOAD_ATTR
+  defp execute_instruction(106, arg, state) do
+    name = elem(state.topframe.code[:names], arg)
+    {reference, state} = pop_from_stack state
+    {object, state} = resolve_reference state, reference, false
+    result = EPython.PyObject.getattr(object, reference, name)
+    push_to_stack state, result
   end
 
   # COMPARE_OP

@@ -1,4 +1,5 @@
 # XXX: We could use Stream instead of Enum in a few places here.
+import EPython.Transformations
 
 defmodule EPython.PyList do
   @enforce_keys [:contents]
@@ -114,5 +115,26 @@ defimpl EPython.PyIterator, for: EPython.PyListIterator do
 
   def next(%EPython.PyListIterator{contents: []}) do
     throw :stopiteration
+  end
+end
+
+defimpl EPython.PyObject, for: EPython.PyList do
+  def parent(_), do: nil
+
+  def getattr(_object, reference, "append") do
+    %EPython.PyMethod{
+      name: "append",
+      object: reference,
+      function: fn [reference, value], state ->
+        {pylist, state} = resolve_reference state, reference, false
+        pylist = EPython.PyList.append pylist, value
+        {:none, pylist, state}
+      end,
+    }
+  end
+
+  def getattr(object, _reference, name) do
+    # TODO: Look in parent.
+    raise ArgumentError, message: "Unknown attribute #{inspect name} with #{inspect object}"
   end
 end
