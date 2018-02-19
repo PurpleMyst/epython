@@ -20,7 +20,8 @@ defmodule EPython.Interpreter do
            name: "print",
            function: fn args, state ->
              {args, state} = resolve_references state, args, false
-             IO.puts Enum.join(args, " ")
+             {reprs, state} = Enum.map_reduce(args, state, &EPython.PyStringable.stringify/2)
+             IO.puts Enum.join(reprs, " ")
              {:none, state}
            end
          },

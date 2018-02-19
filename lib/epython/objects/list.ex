@@ -22,14 +22,26 @@ defmodule EPython.PyList do
 
   def to_list(%EPython.PyList{contents: contents}) do
     # XXX: This is one of the places where we could use a Stream.
-    Enum.map((0..map_size(contents) - 1), &Map.fetch!(contents, &1))
+    if map_size(contents) == 0 do
+      []
+    else
+      Enum.map((0..map_size(contents) - 1), &Map.fetch!(contents, &1))
+    end
   end
 end
 
-defimpl String.Chars, for: EPython.PyList do
-  def to_string(pylist) do
-    # XXX: It might be more efficent to print out each element ourselves.
-    inspect EPython.PyList.to_list(pylist)
+defimpl EPython.PyRepresentable, for: EPython.PyList do
+  def represent(pylist, state) do
+    list = EPython.PyList.to_list(pylist)
+    {list, state} = Enum.map_reduce(list, state, &EPython.PyRepresentable.represent/2)
+
+    {"[" <> Enum.join(list, ", ") <> "]", state}
+  end
+end
+
+defimpl EPython.PyStringable, for: EPython.PyList do
+  def stringify(pylist, state) do
+    EPython.PyRepresentable.represent pylist, state
   end
 end
 
