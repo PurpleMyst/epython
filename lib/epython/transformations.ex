@@ -30,8 +30,9 @@ defmodule EPython.Transformations do
     Enum.at(state.topframe.stack, offset)
   end
 
-  def is_pyobject(%EPython.PyList{}), do: true
-  def is_pyobject(_), do: false
+  def is_pyobject(value) do
+    EPython.PyObject.impl_for(value) != nil
+  end
 
   def apply_to_stack(state, f, target \\ nil) do
     # TODO: when we implement user-defined classes, do we need to handle those
