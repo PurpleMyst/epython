@@ -17,20 +17,21 @@ defmodule EPython.Marshal do
                       lnotab: :object,
                      ]
 
-  def unmarshal(data, refs \\ [])
+  def unmarshal(data, refs \\ %{})
 
   def unmarshal(<<>>, _) do
     []
   end
 
   def unmarshal(data, refs) when is_binary(data) do
-      {value, rest, refs} = unmarshal_once(data, refs)
-      [value | unmarshal(rest, refs)]
+    {value, rest, refs} = unmarshal_once(data, refs)
+    [value | unmarshal(rest, refs)]
   end
 
   defp unmarshal_once(<<1 :: 1, type :: 7, data :: binary>>, refs) do
     {unmarshalled_obj, data, refs} = unmarshal_once(<<type>> <> data, refs)
-    {unmarshalled_obj, data, refs ++ [unmarshalled_obj]}
+    next_id = Enum.max(Map.keys(refs), fn -> 0 end) + 1
+    {unmarshalled_obj, data, Map.put(refs, next_id, unmarshalled_obj)}
   end
 
   # singletons
@@ -93,7 +94,7 @@ defmodule EPython.Marshal do
       |> Enum.map_reduce({data, refs}, fn {name, type}, {rest, refs} ->
           case type do
             :long ->
-              {value, rest} = unmarshal_long(rest)
+              {value, rest} = unmarshal_int64(rest)
               {{name, value}, {rest, refs}}
 
             :object ->
@@ -107,7 +108,7 @@ defmodule EPython.Marshal do
 
   # references
   defp unmarshal_once(<< 0 :: 1, ?r :: 7, id :: 8*4-little, rest :: binary >>, refs) do
-    {get_reference(refs, id), rest, refs}
+    {Map.fetch!(refs, id), rest, refs}
   end
 
   # sequences
@@ -157,13 +158,7 @@ defmodule EPython.Marshal do
     {[value | items], rest, refs}
   end
 
-  # XXX: This is not the same as a PyLong.
-  defp unmarshal_long(<< a, b, c, d, rest :: binary>>) do
+  defp unmarshal_int64(<< a, b, c, d, rest :: binary>>) do
     {:binary.decode_unsigned(<<a, b, c, d>>, :little), rest}
   end
-
-  # TODO: Convert the reference linked list into a map or something more
-  # efficient.
-  defp get_reference(l, n) when n <= 1, do: hd(l)
-  defp get_reference(l, n),             do: get_reference(tl(l), n - 1)
 end
